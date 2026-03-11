@@ -105,14 +105,16 @@ nav a:hover {
   letter-spacing: -0.03em;
   text-transform: lowercase;
   color: var(--fg);
-  display: flex;
-  flex-direction: column;
-  gap: 0;
 }
 
 .hero h1 div {
   line-height: 1;
+  display: block;
 }
+
+#hero-tech  { margin-top: 0; }
+#hero-fire  { margin-top: 0; }
+#hero-steel { margin-top: -10px; }
 
 /* -----------------------------------------------
    Work — full-bleed pieces
@@ -172,6 +174,12 @@ nav a:hover {
 .about {
   padding: var(--gap) clamp(1rem, 4vw, 2.5rem);
   border-top: 1px solid #222;
+}
+
+.about-page {
+  min-height: calc(100dvh - var(--header-h));
+  display: flex;
+  align-items: center;
 }
 
 .about-inner {
