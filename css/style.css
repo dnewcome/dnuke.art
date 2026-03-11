@@ -1,0 +1,249 @@
+/* -----------------------------------------------
+   dnuke.art — portfolio
+   ----------------------------------------------- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0c0c0c;
+  --surface:   #141414;
+  --fg:        #e8e8e8;
+  --fg-muted:  #666;
+  --accent:    #e8e8e8;
+  --gap:        clamp(4rem, 10vw, 8rem);
+  --header-h:  3.5rem;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Mono', monospace;
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img, video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* -----------------------------------------------
+   Header
+   ----------------------------------------------- */
+
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(1rem, 4vw, 2.5rem);
+  mix-blend-mode: difference;
+}
+
+.wordmark {
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+nav {
+  display: flex;
+  gap: 2rem;
+}
+
+nav a {
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+nav a:hover {
+  opacity: 1;
+}
+
+/* -----------------------------------------------
+   Hero
+   ----------------------------------------------- */
+
+.hero {
+  height: 100dvh;
+  display: flex;
+  align-items: flex-end;
+  padding: clamp(2rem, 6vw, 4rem) clamp(1rem, 4vw, 2.5rem);
+}
+
+.hero h1 {
+  font-size: clamp(4rem, 14vw, 12rem);
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+  color: var(--fg);
+}
+
+/* -----------------------------------------------
+   Work — full-bleed pieces
+   ----------------------------------------------- */
+
+.work {
+  padding-top: var(--gap);
+}
+
+.piece {
+  margin-bottom: var(--gap);
+}
+
+/* Full-bleed media — zero horizontal margin */
+.piece .media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* Portrait option — add class="piece portrait" */
+.piece.portrait .media {
+  aspect-ratio: 3 / 4;
+  max-width: 70vw;
+  margin: 0 auto;
+}
+
+/* Square option */
+.piece.square .media {
+  aspect-ratio: 1 / 1;
+}
+
+.piece .caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.85rem clamp(1rem, 4vw, 2.5rem) 0;
+}
+
+.piece .title {
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.piece .meta {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+/* -----------------------------------------------
+   About
+   ----------------------------------------------- */
+
+.about {
+  padding: var(--gap) clamp(1rem, 4vw, 2.5rem);
+  border-top: 1px solid #222;
+}
+
+.about-inner {
+  max-width: 48ch;
+}
+
+.about p {
+  font-size: clamp(1rem, 2.2vw, 1.3rem);
+  line-height: 1.6;
+  color: var(--fg);
+  font-weight: 300;
+}
+
+.links {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1.5rem;
+}
+
+.links a {
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--fg-muted);
+  padding-bottom: 2px;
+  transition: border-color 0.2s;
+}
+
+.links a:hover {
+  border-color: var(--fg);
+}
+
+/* -----------------------------------------------
+   Footer
+   ----------------------------------------------- */
+
+footer {
+  padding: 2rem clamp(1rem, 4vw, 2.5rem);
+  border-top: 1px solid #222;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+/* -----------------------------------------------
+   Scroll fade-in
+   ----------------------------------------------- */
+
+.piece {
+  opacity: 0;
+  transform: translateY(1.5rem);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.piece.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .piece {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* -----------------------------------------------
+   Responsive
+   ----------------------------------------------- */
+
+@media (max-width: 600px) {
+  nav {
+    gap: 1.2rem;
+  }
+  .piece.portrait .media {
+    max-width: 100%;
+  }
+}
