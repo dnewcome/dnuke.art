@@ -102,10 +102,16 @@ nav a:hover {
 .hero h1 {
   font-size: clamp(4rem, 14vw, 12rem);
   font-weight: 300;
-  line-height: 0.9;
   letter-spacing: -0.03em;
   text-transform: lowercase;
   color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hero h1 div {
+  line-height: 1;
 }
 
 /* -----------------------------------------------
