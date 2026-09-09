@@ -75,6 +75,7 @@
     }
     .livepanel button.go:hover { border-color: var(--fg); }
     .livepanel small { color: var(--fg-muted); letter-spacing: 0.02em; line-height: 1.5; }
+    .livepanel small a { color: var(--fg); border-bottom: 1px solid var(--fg-muted); }
     .livepanel[hidden], body.embed .livepanel { display: none; }
     .patterns {
       display: flex;
@@ -175,7 +176,7 @@
           <button class="go" id="wsgo">connect</button>
         </div>
         <small>Expects one binary message per frame: 21,600 bytes, 12 strings × 600 LEDs × RGB,
-        string-major. The Art-Net bridge in thread-3d/bridge speaks this; so can anything else.</small>
+        string-major. The Art-Net bridge in <a href="https://github.com/dnewcome/thread-3d/tree/main/bridge" target="_blank" rel="noopener">thread-3d/bridge</a> speaks this; so can anything else.</small>
       </div>
       <div class="overlay">
         <div>
@@ -224,6 +225,7 @@
         <li><span>2</span> interactive pedestals</li>
         <li><span>48</span> Art-Net universes</li>
         <li>steel, wood, electronics, LEDs, hardware</li>
+        <li>visualizer source <span><a href="https://github.com/dnewcome/thread-3d" target="_blank" rel="noopener">github.com/dnewcome/thread-3d</a></span></li>
       </ul>
     </section>
   </main>
