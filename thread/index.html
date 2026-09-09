@@ -128,7 +128,7 @@
   <main>
     <section class="viewer">
       <canvas id="c"></canvas>
-      <div class="hint">drag to orbit · scroll to zoom · N normals</div>
+      <div class="hint">drag to orbit · scroll to zoom · right-drag to pan · N normals</div>
       <div class="overlay">
         <h1>thread</h1>
         <div class="patterns" id="patterns"></div>
@@ -140,9 +140,9 @@
         <p>
           Thread is an interactive light sculpture by
           <a href="https://www.sambrocchini.com/work/thread" target="_blank" rel="noopener">Sam Brocchini</a>,
-          built with a group of artists, engineers, and friends. Twelve strings of LEDs
-          are drawn between two pedestals and twist around each other into a single
-          braided form.
+          built with a group of artists, engineers, and friends. A steel spine is drawn
+          between two pedestals, three tubes spiral around it, and twelve strings of LEDs
+          run their length into a single twisted form.
         </p>
         <p>
           Each pedestal has buttons. Press one and a comet runs out along your strand
@@ -151,12 +151,14 @@
           connected, the whole thread lights up.
         </p>
         <p>
-          The render above is driven from the fabrication model. Every one of the
-          7,200 points is an LED in the real piece, at its real position, facing the
-          way its chip faces. LEDs pointed away from you dim, and strands hide behind
-          the form and behind each other as it turns, so what you see is close to what
-          the eye sees from that side of the piece. Toggle facing, strands and core to
-          compare with a bare point cloud.
+          The render above is built from the fabrication model of the steel: the two
+          pedestals, the central spine pipe, and three tubes that spiral around it. Twelve
+          diffused LED ropes run along them, three on each tube and three on the spine,
+          7,200 LEDs in all at their real positions. Each rope glows through a 270° arc with
+          the strip's own shadow at its back, and ropes hide behind the steel and behind
+          each other as the piece turns, so what you see is close to what the eye sees
+          from that side of the piece. Toggle facing, structure and glow to compare with a
+          bare point cloud.
         </p>
       </div>
       <ul class="specs">
@@ -166,6 +168,7 @@
         <li>shown at Burning Man 2025</li>
         <li><span>7,200</span> addressable LEDs</li>
         <li><span>12</span> strings, 600 LEDs each</li>
+        <li><span>3</span> spiral tubes around a <span>3"</span> spine</li>
         <li><span>2</span> interactive pedestals</li>
         <li><span>48</span> Art-Net universes</li>
         <li>steel, wood, electronics, LEDs, hardware</li>
@@ -180,12 +183,14 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
     const PARAMS = new URLSearchParams(location.search);
     const EMBED = PARAMS.has('embed');
     const paramOn = (name, dflt) => PARAMS.has(name) ? PARAMS.get(name) !== '0' : dflt;
     if (EMBED) document.body.classList.add('embed');
     const STRINGS = 12, N = 600, TOTAL = STRINGS * N;
+    const ROPE_R = 0.009;               // diffused rope radius, metres
     const canvas = document.getElementById('c');
     const wrap = canvas.parentElement;
 
@@ -194,7 +199,7 @@
     renderer.setClearColor(0x0c0c0c, 1);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 2000);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
     camera.up.set(0, 0, 1);
 
     const controls = new OrbitControls(camera, canvas);
@@ -203,9 +208,9 @@
     controls.autoRotate = !PARAMS.has('pattern');
     controls.autoRotateSpeed = 0.35;
     controls.enableZoom = !EMBED;
-    controls.enablePan = false;
-    controls.minPolarAngle = 0.2;
-    controls.maxPolarAngle = Math.PI - 0.2;
+    controls.enablePan = !EMBED;
+    controls.minPolarAngle = 0.15;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;   // don't go under the floor
     controls.addEventListener('start', () => { controls.autoRotate = false; });
 
     const uScale = { value: 1 };
@@ -219,164 +224,172 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // Soft round sprite for the LED glow
     function glowTexture() {
       const s = 64, cv = document.createElement('canvas');
       cv.width = cv.height = s;
       const g = cv.getContext('2d');
       const grad = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
       grad.addColorStop(0, 'rgba(255,255,255,1)');
-      grad.addColorStop(0.25, 'rgba(255,255,255,0.6)');
+      grad.addColorStop(0.3, 'rgba(255,255,255,0.45)');
       grad.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = grad;
-      g.fillRect(0, 0, s, s);
-      const t = new THREE.CanvasTexture(cv);
-      t.colorSpace = THREE.SRGBColorSpace;
-      return t;
+      g.fillStyle = grad; g.fillRect(0, 0, s, s);
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
     }
 
-    // ── LED data: Float32 [x y z nx ny nz] × 12 strings × 600, string-major.
-    //    Positions are chip centroids from the fabrication STL; the normal is the
-    //    chip's short axis (the emitting face), signed to point away from the
-    //    sculpture's medial curve.
-    const buf = await (await fetch('leds.f32')).arrayBuffer();
-    const raw = new Float32Array(buf);
-
-    const box = new THREE.Box3();
-    const v = new THREE.Vector3();
-    for (let i = 0; i < TOTAL; i++) box.expandByPoint(v.set(raw[i*6], raw[i*6+1], raw[i*6+2]));
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    const extent = Math.max(size.x, size.y, size.z);
-
-    const positions = new Float32Array(TOTAL * 3);
-    const normals = new Float32Array(TOTAL * 3);
+    // ── LED data: Float32 [x y z nx ny nz] × 12 strings × 600, world metres, Z up.
+    //    Strings 0-8 ride the three spiral tubes (three per tube), 9-11 ride the spine.
+    //    The normal points from the tube axis out through the rope: the LED strip's back.
+    const raw = new Float32Array(await (await fetch('leds.f32')).arrayBuffer());
+    const positions = new Float32Array(TOTAL * 3), normals = new Float32Array(TOTAL * 3);
+    const box = new THREE.Box3(); const v3 = new THREE.Vector3();
     for (let i = 0; i < TOTAL; i++) {
-      positions[i*3]   = raw[i*6]   - center.x;
-      positions[i*3+1] = raw[i*6+1] - center.y;
-      positions[i*3+2] = raw[i*6+2] - center.z;
-      normals[i*3] = raw[i*6+3]; normals[i*3+1] = raw[i*6+4]; normals[i*3+2] = raw[i*6+5];
+      positions.set([raw[i*6], raw[i*6+1], raw[i*6+2]], i*3);
+      normals.set([raw[i*6+3], raw[i*6+4], raw[i*6+5]], i*3);
+      box.expandByPoint(v3.set(raw[i*6], raw[i*6+1], raw[i*6+2]));
     }
+    const center = box.getCenter(new THREE.Vector3());
+    const extent = box.getSize(new THREE.Vector3()).length();
 
-    // ── LED points: additive sprites, brightness falls off with the angle between
-    //    the chip normal and the eye (a wide-angle LED looks roughly Lambertian).
-    const colors = new Float32Array(TOTAL * 3);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-    geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
-
+    // ── per-LED colour lives in a 600×12 float texture shared by every rope shader
+    const colorData = new Float32Array(TOTAL * 4);
+    const colorTex = new THREE.DataTexture(colorData, N, STRINGS, THREE.RGBAFormat, THREE.FloatType);
+    colorTex.magFilter = THREE.LinearFilter; colorTex.minFilter = THREE.LinearFilter;
+    colorTex.needsUpdate = true;
     const uniforms = {
-      uMap: { value: glowTexture() },
-      uSize: { value: extent / 55 },
-      uScale,
+      uColors: { value: colorTex },
       uFacing: { value: paramOn('facing', true) ? 1 : 0 },
+      uMap: { value: glowTexture() },
+      uSize: { value: 0.045 },
+      uScale,
     };
-    const mat = new THREE.ShaderMaterial({
+    const texLookup = `
+      uniform sampler2D uColors;
+      vec3 ledColor(float led) {
+        float i = mod(led, ${N}.0), s = floor(led / ${N}.0);
+        return texture2D(uColors, vec2((i + 0.5) / ${N}.0, (s + 0.5) / ${STRINGS}.0)).rgb;
+      }`;
+
+    // ── ropes: a tube through each string's LEDs. Per vertex: which LED, and how far
+    //    around the rope from the strip's back — lit through 270°, shadowed behind.
+    const ropeMat = new THREE.ShaderMaterial({
       uniforms,
-      transparent: true,
-      depthTest: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexShader: `
+      vertexShader: texLookup + `
+        uniform float uFacing;
+        attribute float aLed, aProfile;
+        varying vec3 vColor; varying float vProfile, vFace;
+        void main() {
+          vColor = ledColor(aLed); vProfile = aProfile;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vec3 n = normalize(normalMatrix * normal);
+          float f = max(dot(n, normalize(-mv.xyz)), 0.0);
+          vFace = mix(1.0, 0.35 + 0.65 * f, uFacing);
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        varying vec3 vColor; varying float vProfile, vFace;
+        void main() { gl_FragColor = vec4(vColor * vProfile * vFace + vec3(0.03), 1.0); }`,
+    });
+    const ropes = new THREE.Group();
+    const RADIAL = 6;
+    for (let s = 0; s < STRINGS; s++) {
+      const pts = [], nrm = [];
+      for (let i = 0; i < N; i++) {
+        const k = (s * N + i) * 3;
+        pts.push(new THREE.Vector3(positions[k], positions[k+1], positions[k+2]));
+        nrm.push(new THREE.Vector3(normals[k], normals[k+1], normals[k+2]));
+      }
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+      const geo = new THREE.TubeGeometry(curve, N, ROPE_R, RADIAL, false);
+      const count = (N + 1) * (RADIAL + 1);
+      const aLed = new Float32Array(count), aProfile = new Float32Array(count);
+      const pos = geo.attributes.position, c = new THREE.Vector3(), d = new THREE.Vector3();
+      for (let i = 0; i <= N; i++) {
+        const led = Math.min(N - 1, Math.round(i / N * (N - 1)));
+        curve.getPointAt(i / N, c);
+        for (let j = 0; j <= RADIAL; j++) {
+          const vi = i * (RADIAL + 1) + j;
+          d.set(pos.getX(vi), pos.getY(vi), pos.getZ(vi)).sub(c).normalize();
+          const cosA = d.dot(nrm[led]);
+          // 270° diffuser: full on the outward half, rolling off to the strip shadow at the back
+          const t = Math.min(1, Math.max(0, (cosA + 0.75) / 0.45));
+          aLed[vi] = s * N + led;
+          aProfile[vi] = t * t * (3 - 2 * t) * (0.75 + 0.25 * Math.max(cosA, 0));
+        }
+      }
+      geo.setAttribute('aLed', new THREE.BufferAttribute(aLed, 1));
+      geo.setAttribute('aProfile', new THREE.BufferAttribute(aProfile, 1));
+      ropes.add(new THREE.Mesh(geo, ropeMat));
+    }
+    scene.add(ropes);
+
+    // ── glow halos at each LED, additive, depth-tested so hidden LEDs don't bleed through
+    const pgeo = new THREE.BufferGeometry();
+    pgeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    pgeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    pgeo.setAttribute('aLed', new THREE.BufferAttribute(Float32Array.from({ length: TOTAL }, (_, i) => i), 1));
+    const glowMat = new THREE.ShaderMaterial({
+      uniforms, transparent: true, depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: texLookup + `
         uniform float uSize, uScale, uFacing;
-        attribute vec3 aColor;
+        attribute float aLed;
         varying vec3 vColor;
         void main() {
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           vec3 n = normalize(normalMatrix * normal);
           float c = dot(n, normalize(-mv.xyz));
-          float w = 0.03 + 0.97 * pow(max(c, 0.0), 0.7);
-          vColor = aColor * mix(1.0, w, uFacing);
+          float w = smoothstep(-0.75, -0.3, c) * (0.5 + 0.5 * max(c, 0.0));
+          vColor = ledColor(aLed) * mix(0.6, w, uFacing) * 0.35;
           gl_PointSize = uSize * uScale / -mv.z;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `
-        uniform sampler2D uMap;
-        varying vec3 vColor;
-        void main() {
-          vec4 t = texture2D(uMap, gl_PointCoord);
-          gl_FragColor = vec4(vColor * t.a, t.a);
-        }`,
+        uniform sampler2D uMap; varying vec3 vColor;
+        void main() { vec4 t = texture2D(uMap, gl_PointCoord); gl_FragColor = vec4(vColor * t.a, t.a); }`,
     });
-    scene.add(new THREE.Points(geo, mat));
+    const glow = new THREE.Points(pgeo, glowMat);
+    glow.visible = paramOn('glow', true);
+    scene.add(glow);
 
-    // ── occluders: the strand bodies and the core form. Both are dark solids that
-    //    only write depth, so LEDs behind them are hidden — self-shadowing.
-    scene.add(new THREE.HemisphereLight(0x33383d, 0x0a0a0a, 0.9));
-    const solid = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9, metalness: 0.1 });
+    // ── the steel: pedestals, spine, spiral tubes and spinner plates from the fab model
+    scene.add(new THREE.HemisphereLight(0x8fa3b8, 0x1a1a1a, 1.1));
+    const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(4, -8, 10); scene.add(key);
+    const steel = new THREE.MeshStandardMaterial({ color: 0x55575c, metalness: 0.7, roughness: 0.4 });
+    const structure = new THREE.Group();
+    structure.visible = paramOn('structure', true);
+    scene.add(structure);
+    new GLTFLoader().load('thread-structure.glb', g => {
+      g.scene.traverse(o => { if (o.isMesh) o.material = steel; });
+      structure.add(g.scene);
+    });
+    // floor at the pedestal base
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 1 }));
+    floor.position.set(center.x, center.y, -1.66);
+    scene.add(floor);
 
-    const STRAND_R = 0.06;               // ≈ half the LED strip width, model units (chip ≈ 0.046)
-    const strandGroup = new THREE.Group();
-    for (let s = 0; s < STRINGS; s++) {
-      const pts = [];
-      for (let i = 0; i < N; i += 2) {   // every other chip is plenty for the spline
-        const k = (s * N + i) * 3;
-        pts.push(new THREE.Vector3(
-          positions[k]   - normals[k]   * STRAND_R * 1.3,
-          positions[k+1] - normals[k+1] * STRAND_R * 1.3,
-          positions[k+2] - normals[k+2] * STRAND_R * 1.3));
-      }
-      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-      strandGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 400, STRAND_R, 8, false), solid));
-    }
-    strandGroup.visible = paramOn('strands', true);
-    scene.add(strandGroup);
-
-    // Core: a lofted tube along the medial curve, radius just inside the strands.
-    function buildCore() {
-      const NB = 60, RING = 24;
-      const xmin = box.min.x - center.x, xmax = box.max.x - center.x;
-      const acc = Array.from({ length: NB }, () => ({ y: 0, z: 0, n: 0, r: Infinity }));
-      const bin = x => Math.min(NB - 1, Math.floor((x - xmin) / (xmax - xmin) * NB));
-      for (let i = 0; i < TOTAL; i++) { const b = acc[bin(positions[i*3])]; b.y += positions[i*3+1]; b.z += positions[i*3+2]; b.n++; }
-      for (const b of acc) { b.y /= b.n; b.z /= b.n; }
-      for (let i = 0; i < TOTAL; i++) { const b = acc[bin(positions[i*3])]; b.r = Math.min(b.r, Math.hypot(positions[i*3+1] - b.y, positions[i*3+2] - b.z)); }
-      const verts = [], idx = [];
-      for (let k = 0; k < NB; k++) {
-        const x = xmin + (k + 0.5) / NB * (xmax - xmin);
-        const b = acc[k], r = Math.max(0.2, b.r * 0.9);
-        for (let j = 0; j < RING; j++) {
-          const a = j / RING * Math.PI * 2;
-          verts.push(x, b.y + Math.cos(a) * r, b.z + Math.sin(a) * r);
-        }
-      }
-      for (let k = 0; k < NB - 1; k++) for (let j = 0; j < RING; j++) {
-        const a = k * RING + j, bq = k * RING + (j + 1) % RING, c = a + RING, d = bq + RING;
-        idx.push(a, bq, c, bq, d, c);
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      g.setIndex(idx);
-      g.computeVertexNormals();
-      return new THREE.Mesh(g, solid);
-    }
-    const core = buildCore();
-    core.visible = paramOn('core', true);
-    scene.add(core);
-
-    // Normal quills — the visual check that the emission directions are right.
+    // ── normal quills
     const quill = new Float32Array(TOTAL * 6);
     for (let i = 0; i < TOTAL; i++) {
-      const k = i * 3, L = extent / 200;
+      const k = i * 3, L = 0.04;
       quill.set([positions[k], positions[k+1], positions[k+2],
                  positions[k] + normals[k] * L, positions[k+1] + normals[k+1] * L, positions[k+2] + normals[k+2] * L], i * 6);
     }
-    const qGeo = new THREE.BufferGeometry();
-    qGeo.setAttribute('position', new THREE.BufferAttribute(quill, 3));
+    const qGeo = new THREE.BufferGeometry(); qGeo.setAttribute('position', new THREE.BufferAttribute(quill, 3));
     const quills = new THREE.LineSegments(qGeo, new THREE.LineBasicMaterial({ color: 0x4a7fb5, transparent: true, opacity: 0.6 }));
     quills.visible = paramOn('normals', false);
     scene.add(quills);
 
-    controls.target.set(0, 0, 0);
-    camera.position.set(extent * 0.30, -extent * 0.72, extent * 0.30);
-    controls.minDistance = extent * 0.15;
+    controls.target.copy(center);
+    camera.position.set(center.x + extent * 0.3, center.y - extent * 0.95, center.z + extent * 0.33);
+    // ?cam=x,y,z&target=x,y,z (metres) pins a view for sharing
+    const vec = name => { const a = (PARAMS.get(name) || '').split(',').map(Number); return a.length === 3 && a.every(Number.isFinite) ? new THREE.Vector3(...a) : null; };
+    if (vec('cam')) { camera.position.copy(vec('cam')); controls.autoRotate = false; }
+    if (vec('target')) controls.target.copy(vec('target'));
+    controls.minDistance = 0.5;
     controls.maxDistance = extent * 3;
     controls.update();
 
     // ── patterns: f(string s, index i, t) → rgb, modelled on the luxpi animations ──
     const tmp = new THREE.Color();
-
     function plasma(t, out) {
       for (let s = 0; s < STRINGS; s++) {
         const stag = s / STRINGS;
@@ -387,121 +400,102 @@
             Math.sin(x * 23.0 - t * 0.9 + s * 0.7) * 0.3 +
             Math.sin((x + stag) * 4.0 + t * 0.3) * 0.2);
           tmp.setHSL((n + t * 0.03 + stag * 0.15) % 1, 1, 0.5);
-          const k = (s * N + i) * 3;
-          out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b;
+          const k = (s * N + i) * 3; out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b;
         }
       }
     }
-
-    const heat = new Float32Array(TOTAL);
-    let fireAcc = 0;
+    const heat = new Float32Array(TOTAL); let fireAcc = 0;
     function fire(t, out, dt) {
       fireAcc += dt;
       const steps = Math.min(4, Math.floor(fireAcc * 90));
       if (steps > 0) fireAcc -= steps / 90;
-      for (let st = 0; st < steps; st++) {
-        for (let s = 0; s < STRINGS; s++) {
-          const o = s * N;
-          for (let i = N - 1; i > 0; i--) heat[o + i] = Math.max(0, heat[o + i - 1] - Math.random() * 0.012);
-          heat[o] = 0.35 + Math.random() * 0.65;
-        }
+      for (let st = 0; st < steps; st++) for (let s = 0; s < STRINGS; s++) {
+        const o = s * N;
+        for (let i = N - 1; i > 0; i--) heat[o + i] = Math.max(0, heat[o + i - 1] - Math.random() * 0.012);
+        heat[o] = 0.35 + Math.random() * 0.65;
       }
       for (let s = 0; s < STRINGS; s++) for (let i = 0; i < N; i++) {
-        const h = heat[s*N + i] * (1 - i / N);
-        const k = (s * N + i) * 3;
+        const h = heat[s*N + i] * (1 - i / N), k = (s * N + i) * 3;
         out[k] = h; out[k+1] = h * h * 0.55; out[k+2] = h * h * h * 0.12;
       }
     }
-
     const cometPhase = Array.from({ length: STRINGS }, (_, s) => (s * 0.37) % 1);
     const cometSpeed = Array.from({ length: STRINGS }, (_, s) => 0.09 + 0.03 * ((s * 7) % 5) / 4);
     function comet(t, out) {
       for (let s = 0; s < STRINGS; s++) {
-        const ph = (cometPhase[s] + t * cometSpeed[s]) % 2;
-        const fwd = ph < 1;
-        const head = (fwd ? ph : 2 - ph) * (N - 1);
-        const hue = (0.55 + s * 0.045) % 1;
+        const ph = (cometPhase[s] + t * cometSpeed[s]) % 2, fwd = ph < 1;
+        const head = (fwd ? ph : 2 - ph) * (N - 1), hue = (0.55 + s * 0.045) % 1;
         for (let i = 0; i < N; i++) {
           const behind = fwd ? head - i : i - head;
-          let a = 0.04;
-          if (behind >= 0) a += Math.exp(-behind / 70); else a += Math.exp(behind * 1.5);
+          let a = 0.04; a += behind >= 0 ? Math.exp(-behind / 70) : Math.exp(behind * 1.5);
           tmp.setHSL(hue, 0.9, Math.min(0.5, a * 0.5));
-          const k = (s * N + i) * 3;
-          out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b;
+          const k = (s * N + i) * 3; out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b;
         }
       }
     }
-
-    // white: every LED full on — the cleanest read of facing and occlusion
     function white(t, out) { out.fill(0.85); }
-
+    // strands: one colour per tube, so the 4 × 3 grouping reads at a glance
+    function strands(t, out) {
+      for (let s = 0; s < STRINGS; s++) {
+        tmp.setHSL((Math.floor(s / 3) * 0.25 + 0.05) % 1, 0.85, 0.5);
+        for (let i = 0; i < N; i++) { const k = (s * N + i) * 3; out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b; }
+      }
+    }
     const PATTERNS = [
-      { name: 'plasma', fn: plasma },
-      { name: 'fire',   fn: fire },
-      { name: 'comet',  fn: comet },
-      { name: 'white',  fn: white },
+      { name: 'plasma', fn: plasma }, { name: 'fire', fn: fire }, { name: 'comet', fn: comet },
+      { name: 'white', fn: white }, { name: 'strands', fn: strands },
     ];
+    const AUTO_CYCLE = 3;
     let current = Math.max(0, PATTERNS.findIndex(p => p.name === PARAMS.get('pattern')));
     let previous = -1, fade = 1, autoTimer = 0;
-    if (PARAMS.has('pattern')) autoTimer = -1e9;   // a deep-linked pattern stays put
+    if (PARAMS.has('pattern')) autoTimer = -1e9;
     const AUTO_SECONDS = 14, FADE_SECONDS = 1.5;
     const bufA = new Float32Array(TOTAL * 3), bufB = new Float32Array(TOTAL * 3);
 
     const bar = document.getElementById('patterns');
     const patternButtons = PATTERNS.map((p, idx) => {
-      const b = document.createElement('button');
-      b.textContent = p.name;
-      b.addEventListener('click', () => select(idx, true));
-      bar.appendChild(b);
-      return b;
+      const b = document.createElement('button'); b.textContent = p.name;
+      b.addEventListener('click', () => select(idx, true)); bar.appendChild(b); return b;
     });
     function select(idx, manual) {
       if (idx === current) return;
-      previous = current; current = idx; fade = 0; autoTimer = 0;
-      if (manual) autoTimer = -AUTO_SECONDS * 3;
+      previous = current; current = idx; fade = 0; autoTimer = manual ? -AUTO_SECONDS * 3 : 0;
       patternButtons.forEach((b, i) => b.classList.toggle('active', i === idx));
     }
     patternButtons[current].classList.add('active');
 
-    // view toggles
     bar.appendChild(Object.assign(document.createElement('span'), { className: 'sep' }));
     const toggles = [
-      { name: 'facing',  get: () => uniforms.uFacing.value > 0.5, set: on => { uniforms.uFacing.value = on ? 1 : 0; } },
-      { name: 'strands', get: () => strandGroup.visible, set: on => { strandGroup.visible = on; } },
-      { name: 'core',    get: () => core.visible,        set: on => { core.visible = on; } },
-      { name: 'normals', get: () => quills.visible,      set: on => { quills.visible = on; } },
+      { name: 'facing',    get: () => uniforms.uFacing.value > 0.5, set: on => { uniforms.uFacing.value = on ? 1 : 0; } },
+      { name: 'structure', get: () => structure.visible, set: on => { structure.visible = on; } },
+      { name: 'glow',      get: () => glow.visible,      set: on => { glow.visible = on; } },
+      { name: 'normals',   get: () => quills.visible,    set: on => { quills.visible = on; } },
     ];
     const toggleButtons = {};
     for (const tg of toggles) {
-      const b = document.createElement('button');
-      b.textContent = tg.name;
-      b.classList.toggle('active', tg.get());
+      const b = document.createElement('button'); b.textContent = tg.name; b.classList.toggle('active', tg.get());
       b.addEventListener('click', () => { tg.set(!tg.get()); b.classList.toggle('active', tg.get()); });
-      bar.appendChild(b);
-      toggleButtons[tg.name] = b;
+      bar.appendChild(b); toggleButtons[tg.name] = b;
     }
     window.addEventListener('keydown', e => { if (e.key === 'n' || e.key === 'N') toggleButtons.normals.click(); });
 
     const clock = new THREE.Clock();
     function frame() {
       requestAnimationFrame(frame);
-      const dt = Math.min(clock.getDelta(), 0.1);
-      const t = clock.elapsedTime;
-
+      const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime;
       autoTimer += dt;
-      if (autoTimer > AUTO_SECONDS) select((current + 1) % 3, false);   // auto-cycle skips 'white'
-
+      if (autoTimer > AUTO_SECONDS) select((current + 1) % AUTO_CYCLE, false);
       PATTERNS[current].fn(t, bufA, dt);
+      let src = bufA;
       if (fade < 1 && previous >= 0) {
         PATTERNS[previous].fn(t, bufB, dt);
         fade = Math.min(1, fade + dt / FADE_SECONDS);
         const e = fade * fade * (3 - 2 * fade);
-        for (let k = 0; k < colors.length; k++) colors[k] = bufB[k] + (bufA[k] - bufB[k]) * e;
-      } else {
-        colors.set(bufA);
+        for (let k = 0; k < bufA.length; k++) bufB[k] += (bufA[k] - bufB[k]) * e;
+        src = bufB;
       }
-      geo.attributes.aColor.needsUpdate = true;
-
+      for (let i = 0; i < TOTAL; i++) { colorData[i*4] = src[i*3]; colorData[i*4+1] = src[i*3+1]; colorData[i*4+2] = src[i*3+2]; colorData[i*4+3] = 1; }
+      colorTex.needsUpdate = true;
       controls.update();
       renderer.render(scene, camera);
     }
