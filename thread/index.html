@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="thread — an interactive LED light sculpture. 12 strings, 7,200 LEDs, rendered live from the CAD model.">
+  <title>thread — dnuke.art</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* Viewer hero: the piece itself, full viewport */
+    .viewer {
+      position: relative;
+      height: 100dvh;
+      background: var(--bg);
+      overflow: hidden;
+    }
+    .viewer canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    .viewer .overlay {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 2.5rem);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+    .viewer h1 {
+      font-size: clamp(3rem, 10vw, 8rem);
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      text-transform: lowercase;
+    }
+    .patterns {
+      display: flex;
+      gap: 1.25rem;
+      pointer-events: auto;
+    }
+    .patterns button {
+      background: none;
+      border: 0;
+      color: #fff;
+      opacity: 0.45;
+      font: inherit;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid transparent;
+      transition: opacity 0.2s, border-color 0.2s;
+    }
+    .patterns button:hover { opacity: 0.85; }
+    .patterns button.active { opacity: 1; border-color: var(--fg); }
+    .hint {
+      position: absolute;
+      top: calc(var(--header-h) + 0.75rem);
+      right: clamp(1rem, 4vw, 2.5rem);
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      pointer-events: none;
+    }
+    /* Text below the viewer */
+    .about-piece {
+      padding: var(--gap) clamp(1rem, 4vw, 2.5rem);
+      display: grid;
+      grid-template-columns: minmax(0, 52ch) 1fr;
+      gap: clamp(2rem, 8vw, 6rem);
+      border-top: 1px solid #222;
+    }
+    .about-piece p {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      line-height: 1.6;
+      font-weight: 300;
+      margin-bottom: 1.2em;
+    }
+    .specs {
+      list-style: none;
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      line-height: 2;
+    }
+    .specs span { color: var(--fg); }
+    /* ?embed — bare canvas for the work-grid tile on the front page */
+    body.embed header, body.embed footer, body.embed .hint,
+    body.embed .overlay, body.embed .about-piece { display: none; }
+    body.embed .viewer { height: 100vh; }
+    @media (max-width: 700px) {
+      .about-piece { grid-template-columns: 1fr; }
+      .viewer .overlay { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="wordmark">dnuke</a>
+    <nav>
+      <a href="../index.html#work">work</a>
+      <a href="../about.html">about</a>
+      <a href="mailto:hello@dnuke.art">contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="viewer">
+      <canvas id="c"></canvas>
+      <div class="hint">drag to orbit · scroll to zoom</div>
+      <div class="overlay">
+        <h1>thread</h1>
+        <div class="patterns" id="patterns"></div>
+      </div>
+    </section>
+
+    <section class="about-piece">
+      <div>
+        <p>
+          Thread is an interactive light sculpture. Twelve strings of LEDs are drawn
+          between two pedestals and twist around each other into a single braided form.
+        </p>
+        <p>
+          Each pedestal has buttons. Press one and a comet runs out along your strand
+          toward the other side. When a player at the far end answers, the two meet in
+          the middle and the strand locks into a connected state. When every strand is
+          connected, the whole thread lights up.
+        </p>
+        <p>
+          The render above is driven from the fabrication model. Every one of the
+          7,200 points is an LED in the real piece, at its real position, and the
+          patterns run in the browser the same way they run on the sculpture.
+        </p>
+      </div>
+      <ul class="specs">
+        <li><span>7,200</span> addressable LEDs</li>
+        <li><span>12</span> strings, 600 LEDs each</li>
+        <li><span>2</span> interactive pedestals</li>
+        <li><span>48</span> Art-Net universes</li>
+        <li>steel, aluminum, addressable LED, Raspberry Pi</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <span>&copy; 2026 dnuke</span>
+  </footer>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const EMBED = new URLSearchParams(location.search).has('embed');
+    if (EMBED) document.body.classList.add('embed');
+    const STRINGS = 12, N = 600, TOTAL = STRINGS * N;
+    const canvas = document.getElementById('c');
+    const wrap = canvas.parentElement;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x0c0c0c, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 2000);
+    camera.up.set(0, 0, 1);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.35;
+    controls.enableZoom = !EMBED;
+    controls.enablePan = false;
+    controls.minPolarAngle = 0.35;
+    controls.maxPolarAngle = Math.PI / 2 + 0.15;
+
+    function resize() {
+      const w = wrap.clientWidth, h = wrap.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Soft round sprite for the LED glow
+    function glowTexture() {
+      const s = 64, cv = document.createElement('canvas');
+      cv.width = cv.height = s;
+      const g = cv.getContext('2d');
+      const grad = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.25, 'rgba(255,255,255,0.6)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, s, s);
+      const t = new THREE.CanvasTexture(cv);
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    }
+
+    // ── load LED positions: Float32 xyz, 12 strings × 600, string-major ──
+    const buf = await (await fetch('leds.f32')).arrayBuffer();
+    const pos = new Float32Array(buf);
+
+    const box = new THREE.Box3();
+    const v = new THREE.Vector3();
+    for (let i = 0; i < TOTAL; i++) box.expandByPoint(v.set(pos[i*3], pos[i*3+1], pos[i*3+2]));
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const extent = Math.max(size.x, size.y, size.z);
+
+    // Centered copy for rendering; normalised u∈[0,1] along the long axis for patterns
+    const positions = new Float32Array(TOTAL * 3);
+    for (let i = 0; i < TOTAL; i++) {
+      positions[i*3]   = pos[i*3]   - center.x;
+      positions[i*3+1] = pos[i*3+1] - center.y;
+      positions[i*3+2] = pos[i*3+2] - center.z;
+    }
+
+    const colors = new Float32Array(TOTAL * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: extent / 55,
+      map: glowTexture(),
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    });
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    // Faint line along each string so the form reads when LEDs are dark
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x3a3a3a, transparent: true, opacity: 0.35 });
+    for (let s = 0; s < STRINGS; s++) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(positions.subarray(s*N*3, (s+1)*N*3), 3));
+      scene.add(new THREE.Line(g, lineMat));
+    }
+
+    controls.target.set(0, 0, 0);
+    camera.position.set(extent * 0.30, -extent * 0.72, extent * 0.30);
+    controls.minDistance = extent * 0.25;
+    controls.maxDistance = extent * 3;
+    controls.update();
+
+    // ── patterns: f(string s, index i, t) → rgb, modelled on the luxpi animations ──
+    const tmp = new THREE.Color();
+
+    // plasma: drifting hue field along the strings, staggered per string
+    function plasma(t, out) {
+      for (let s = 0; s < STRINGS; s++) {
+        const stag = s / STRINGS;
+        for (let i = 0; i < N; i++) {
+          const x = i / N;
+          const n = 0.5 + 0.5 * (
+            Math.sin(x * 9.0 + t * 0.55 + stag * 6.28) * 0.5 +
+            Math.sin(x * 23.0 - t * 0.9 + s * 0.7) * 0.3 +
+            Math.sin((x + stag) * 4.0 + t * 0.3) * 0.2);
+          tmp.setHSL((n + t * 0.03 + stag * 0.15) % 1, 1, 0.5);
+          const k = (s * N + i) * 3;
+          out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b;
+        }
+      }
+    }
+
+    // fire: heat injected at pedestal A, scrolling toward B and decaying
+    const heat = new Float32Array(TOTAL);
+    let fireAcc = 0;
+    function fire(t, out, dt) {
+      fireAcc += dt;
+      const steps = Math.min(4, Math.floor(fireAcc * 90));
+      if (steps > 0) fireAcc -= steps / 90;
+      for (let st = 0; st < steps; st++) {
+        for (let s = 0; s < STRINGS; s++) {
+          const o = s * N;
+          for (let i = N - 1; i > 0; i--) {
+            heat[o + i] = Math.max(0, heat[o + i - 1] - Math.random() * 0.012);
+          }
+          heat[o] = 0.35 + Math.random() * 0.65;
+        }
+      }
+      for (let s = 0; s < STRINGS; s++) {
+        for (let i = 0; i < N; i++) {
+          const h = heat[s*N + i] * (1 - i / N);
+          const k = (s * N + i) * 3;
+          out[k] = h; out[k+1] = h * h * 0.55; out[k+2] = h * h * h * 0.12;
+        }
+      }
+    }
+
+    // comet: one head per string bouncing between pedestals, never fully dark
+    const cometPhase = Array.from({ length: STRINGS }, (_, s) => (s * 0.37) % 1);
+    const cometSpeed = Array.from({ length: STRINGS }, (_, s) => 0.09 + 0.03 * ((s * 7) % 5) / 4);
+    function comet(t, out) {
+      for (let s = 0; s < STRINGS; s++) {
+        const ph = (cometPhase[s] + t * cometSpeed[s]) % 2;
+        const fwd = ph < 1;
+        const head = (fwd ? ph : 2 - ph) * (N - 1);
+        const hue = (0.55 + s * 0.045) % 1;
+        for (let i = 0; i < N; i++) {
+          const behind = fwd ? head - i : i - head;
+          let a = 0.04;
+          if (behind >= 0) a += Math.exp(-behind / 70);
+          else a += Math.exp(behind * 1.5);
+          tmp.setHSL(hue, 0.9, Math.min(0.5, a * 0.5));
+          const k = (s * N + i) * 3;
+          out[k] = tmp.r; out[k+1] = tmp.g; out[k+2] = tmp.b;
+        }
+      }
+    }
+
+    const PATTERNS = [
+      { name: 'plasma', fn: plasma },
+      { name: 'fire',   fn: fire },
+      { name: 'comet',  fn: comet },
+    ];
+    let current = 0, previous = -1, fade = 1, autoTimer = 0;
+    const AUTO_SECONDS = 14, FADE_SECONDS = 1.5;
+    const bufA = new Float32Array(TOTAL * 3), bufB = new Float32Array(TOTAL * 3);
+
+    const bar = document.getElementById('patterns');
+    PATTERNS.forEach((p, idx) => {
+      const b = document.createElement('button');
+      b.textContent = p.name;
+      b.addEventListener('click', () => select(idx, true));
+      bar.appendChild(b);
+    });
+    function select(idx, manual) {
+      if (idx === current) return;
+      previous = current; current = idx; fade = 0; autoTimer = 0;
+      if (manual) autoTimer = -AUTO_SECONDS * 2; // linger longer after a click
+      [...bar.children].forEach((b, i) => b.classList.toggle('active', i === idx));
+    }
+    bar.children[0].classList.add('active');
+
+    const clock = new THREE.Clock();
+    function frame() {
+      requestAnimationFrame(frame);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      const t = clock.elapsedTime;
+
+      autoTimer += dt;
+      if (autoTimer > AUTO_SECONDS) select((current + 1) % PATTERNS.length, false);
+
+      PATTERNS[current].fn(t, bufA, dt);
+      if (fade < 1 && previous >= 0) {
+        PATTERNS[previous].fn(t, bufB, dt);
+        fade = Math.min(1, fade + dt / FADE_SECONDS);
+        const e = fade * fade * (3 - 2 * fade);
+        for (let k = 0; k < colors.length; k++) colors[k] = bufB[k] + (bufA[k] - bufB[k]) * e;
+      } else {
+        colors.set(bufA);
+      }
+      geo.attributes.color.needsUpdate = true;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    frame();
+  </script>
+</body>
+</html>
