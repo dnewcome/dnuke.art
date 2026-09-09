@@ -190,7 +190,7 @@
     const paramOn = (name, dflt) => PARAMS.has(name) ? PARAMS.get(name) !== '0' : dflt;
     if (EMBED) document.body.classList.add('embed');
     const STRINGS = 12, N = 600, TOTAL = STRINGS * N;
-    const ROPE_R = 0.009;               // diffused rope radius, metres
+    const ROPE_R = 0.013;               // diffused rope radius, metres (26 mm rope per build photo)
     const canvas = document.getElementById('c');
     const wrap = canvas.parentElement;
 
