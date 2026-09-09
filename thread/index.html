@@ -239,7 +239,11 @@
     // ── LED data: Float32 [x y z nx ny nz] × 12 strings × 600, world metres, Z up.
     //    Strings 0-8 ride the three spiral tubes (three per tube), 9-11 ride the spine.
     //    The normal points from the tube axis out through the rope: the LED strip's back.
-    const raw = new Float32Array(await (await fetch('leds.f32')).arrayBuffer());
+    // assets live next to this page; resolve them explicitly so /thread and /thread/ both work
+    const BASE = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+    const res = await fetch(BASE + 'leds.f32');
+    if (!res.ok) throw new Error(`leds.f32: HTTP ${res.status}`);
+    const raw = new Float32Array(await res.arrayBuffer());
     const positions = new Float32Array(TOTAL * 3), normals = new Float32Array(TOTAL * 3);
     const box = new THREE.Box3(); const v3 = new THREE.Vector3();
     for (let i = 0; i < TOTAL; i++) {
@@ -357,7 +361,7 @@
     const structure = new THREE.Group();
     structure.visible = paramOn('structure', true);
     scene.add(structure);
-    new GLTFLoader().load('thread-structure.glb', g => {
+    new GLTFLoader().load(BASE + 'thread-structure.glb', g => {
       g.scene.traverse(o => { if (o.isMesh) o.material = steel; });
       structure.add(g.scene);
     });
