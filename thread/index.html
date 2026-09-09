@@ -92,6 +92,8 @@
       line-height: 2;
     }
     .specs span { color: var(--fg); }
+    .specs a { border-bottom: 1px solid var(--fg-muted); text-transform: none; letter-spacing: 0; }
+    .specs a:hover { border-color: var(--fg); }
     /* ?embed — bare canvas for the work-grid tile on the front page */
     body.embed header, body.embed footer, body.embed .hint,
     body.embed .overlay, body.embed .about-piece { display: none; }
@@ -153,6 +155,8 @@
         </p>
       </div>
       <ul class="specs">
+        <li>lead artist <span><a href="https://sambrocchini.art" target="_blank" rel="noopener">sambrocchini.art</a></span></li>
+        <li>lighting + software <span>dnuke</span></li>
         <li><span>7,200</span> addressable LEDs</li>
         <li><span>12</span> strings, 600 LEDs each</li>
         <li><span>2</span> interactive pedestals</li>
