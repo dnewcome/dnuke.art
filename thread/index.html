@@ -77,6 +77,8 @@
       gap: clamp(2rem, 8vw, 6rem);
       border-top: 1px solid #222;
     }
+    .about-piece p a { border-bottom: 1px solid var(--fg-muted); }
+    .about-piece p a:hover { border-color: var(--fg); }
     .about-piece p {
       font-size: clamp(1rem, 2vw, 1.2rem);
       line-height: 1.6;
@@ -136,8 +138,11 @@
     <section class="about-piece">
       <div>
         <p>
-          Thread is an interactive light sculpture. Twelve strings of LEDs are drawn
-          between two pedestals and twist around each other into a single braided form.
+          Thread is an interactive light sculpture by
+          <a href="https://www.sambrocchini.com/work/thread" target="_blank" rel="noopener">Sam Brocchini</a>,
+          built with a group of artists, engineers, and friends. Twelve strings of LEDs
+          are drawn between two pedestals and twist around each other into a single
+          braided form.
         </p>
         <p>
           Each pedestal has buttons. Press one and a comet runs out along your strand
@@ -155,13 +160,15 @@
         </p>
       </div>
       <ul class="specs">
-        <li>lead artist <span><a href="https://sambrocchini.art" target="_blank" rel="noopener">sambrocchini.art</a></span></li>
+        <li>lead artist <span><a href="https://www.sambrocchini.com/work/thread" target="_blank" rel="noopener">Sam Brocchini</a></span></li>
         <li>lighting + software <span>dnuke</span></li>
+        <li>built at The Box Shop, San Francisco</li>
+        <li>shown at Burning Man 2025</li>
         <li><span>7,200</span> addressable LEDs</li>
         <li><span>12</span> strings, 600 LEDs each</li>
         <li><span>2</span> interactive pedestals</li>
         <li><span>48</span> Art-Net universes</li>
-        <li>steel, aluminum, addressable LED, Raspberry Pi</li>
+        <li>steel, wood, electronics, LEDs, hardware</li>
       </ul>
     </section>
   </main>
