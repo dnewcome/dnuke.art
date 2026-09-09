@@ -37,6 +37,17 @@
       line-height: 1;
       text-transform: lowercase;
     }
+    .credit {
+      margin-top: 0.6rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      pointer-events: auto;
+    }
+    .credit a { color: var(--fg); border-bottom: 1px solid var(--fg-muted); }
+    .credit a:hover { border-color: var(--fg); }
+    body.embed .credit { display: none; }
     .patterns {
       display: flex;
       gap: 1.25rem;
@@ -130,7 +141,13 @@
       <canvas id="c"></canvas>
       <div class="hint">drag to orbit · scroll to zoom · right-drag to pan · N normals</div>
       <div class="overlay">
-        <h1>thread</h1>
+        <div>
+          <h1>thread</h1>
+          <p class="credit">
+            <a href="https://www.sambrocchini.com/work/thread" target="_blank" rel="noopener">Sam Brocchini</a>, lead artist
+            &nbsp;·&nbsp; lighting + software, dnuke
+          </p>
+        </div>
         <div class="patterns" id="patterns"></div>
       </div>
     </section>
