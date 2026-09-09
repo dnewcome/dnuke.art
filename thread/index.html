@@ -48,6 +48,24 @@
     .credit a { color: var(--fg); border-bottom: 1px solid var(--fg-muted); }
     .credit a:hover { border-color: var(--fg); }
     body.embed .credit { display: none; }
+    #gate {
+      position: fixed; inset: 0; z-index: 50;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #gate form { display: flex; flex-direction: column; gap: 0.8rem; width: min(22rem, 90vw); }
+    #gate h2 { font-weight: 300; font-size: 2.2rem; letter-spacing: -0.02em; text-transform: lowercase; }
+    #gate label { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-muted); }
+    #gate input {
+      background: #0c0c0c; border: 1px solid #333; color: var(--fg); padding: 0.6rem 0.7rem;
+      font: inherit; font-family: var(--font-mono); font-size: 1rem;
+    }
+    #gate button {
+      background: none; border: 1px solid var(--fg-muted); color: var(--fg); font: inherit;
+      text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem; padding: 0.6rem; cursor: pointer;
+    }
+    #gate button:hover { border-color: var(--fg); }
+    #gate .err { color: #c66; font-size: 0.8rem; min-height: 1.2em; }
     .livepanel {
       position: absolute;
       right: clamp(1rem, 4vw, 2.5rem);
@@ -155,6 +173,16 @@
   </script>
 </head>
 <body>
+
+  <div id="gate">
+    <form id="gateform">
+      <h2>thread</h2>
+      <label for="pass">passphrase</label>
+      <input id="pass" type="password" autocomplete="current-password" autofocus>
+      <button type="submit">open</button>
+      <div class="err" id="gateerr"></div>
+    </form>
+  </div>
 
   <main>
     <section class="viewer">
@@ -284,11 +312,45 @@
     // ── LED data: Float32 [x y z nx ny nz] × 12 strings × 600, world metres, Z up.
     //    Strings 0-8 ride the three spiral tubes (three per tube), 9-11 ride the spine.
     //    The normal points from the tube axis out through the rope: the LED strip's back.
-    // assets live next to this page; resolve them explicitly so /thread and /thread/ both work
+    // assets live next to this page; resolve them explicitly so /thread and /thread/ both work.
+    // They are stored encrypted (see tools/encrypt-assets.mjs) and decrypted here with a passphrase.
     const BASE = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
-    const res = await fetch(BASE + 'leds.f32');
-    if (!res.ok) throw new Error(`leds.f32: HTTP ${res.status}`);
-    const raw = new Float32Array(await res.arrayBuffer());
+    async function fetchEnc(name) {
+      const res = await fetch(BASE + name + '.enc');
+      if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+      return new Uint8Array(await res.arrayBuffer());
+    }
+    async function decrypt(buf, pass) {
+      if (new TextDecoder().decode(buf.subarray(0, 4)) !== 'THR1') throw new Error('bad container');
+      const salt = buf.subarray(4, 20), iv = buf.subarray(20, 32), ct = buf.subarray(32);
+      const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+      const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    }
+    const gate = document.getElementById('gate'), gateForm = document.getElementById('gateform'), gateErr = document.getElementById('gateerr'), passEl = document.getElementById('pass');
+    const [encLeds, encGlb] = await Promise.all([fetchEnc('leds.f32'), fetchEnc('thread-structure.glb')]);
+    async function tryPass(pass) {
+      const ledsBuf = await decrypt(encLeds, pass);      // throws on a wrong passphrase
+      const glbBuf = await decrypt(encGlb, pass);
+      return { ledsBuf, glbBuf };
+    }
+    let unlocked = null;
+    let remembered = ''; try { remembered = localStorage.getItem('thread.pass') || ''; } catch (e) {}
+    if (remembered) { try { unlocked = await tryPass(remembered); } catch (e) { remembered = ''; } }
+    if (!unlocked) {
+      unlocked = await new Promise(resolve => {
+        gateForm.addEventListener('submit', async ev => {
+          ev.preventDefault(); gateErr.textContent = '';
+          try {
+            const r = await tryPass(passEl.value);
+            try { localStorage.setItem('thread.pass', passEl.value); } catch (e) {}
+            resolve(r);
+          } catch (e) { gateErr.textContent = 'wrong passphrase'; passEl.select(); }
+        });
+      });
+    }
+    gate.remove();
+    const raw = new Float32Array(unlocked.ledsBuf);
     const positions = new Float32Array(TOTAL * 3), normals = new Float32Array(TOTAL * 3);
     const box = new THREE.Box3(); const v3 = new THREE.Vector3();
     for (let i = 0; i < TOTAL; i++) {
@@ -406,10 +468,10 @@
     const structure = new THREE.Group();
     structure.visible = paramOn('structure', true);
     scene.add(structure);
-    new GLTFLoader().load(BASE + 'thread-structure.glb', g => {
+    new GLTFLoader().parse(unlocked.glbBuf, '', g => {
       g.scene.traverse(o => { if (o.isMesh) o.material = steel; });
       structure.add(g.scene);
-    });
+    }, err => console.error('glb', err));
     // floor at the pedestal base
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 1 }));
     floor.position.set(center.x, center.y, -1.66);
