@@ -158,6 +158,29 @@
       color: var(--fg-muted);
       pointer-events: none;
     }
+    .livebanner {
+      position: absolute; left: 50%; top: 4.5rem; transform: translateX(-50%);
+      padding: 0.9rem 1.6rem; border: 2px solid #e0a635; background: rgba(20,20,20,0.9);
+      color: #e0a635; text-align: center; letter-spacing: 0.12em; text-transform: uppercase;
+      pointer-events: none; animation: hint-blink 1.2s steps(2, start) infinite;
+    }
+    .livebanner[hidden] { display: none; }
+    .livebanner b { display: block; font-weight: 400; font-size: clamp(1.4rem, 3vw, 2.2rem); line-height: 1.1; }
+    .livebanner span { display: block; margin-top: 0.4rem; font-size: 0.75rem; color: var(--fg-muted); letter-spacing: 0.08em; }
+    .livebanner.down { border-color: #e04040; color: #e04040; }
+    .hint .dot {
+      display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%;
+      margin-right: 0.6rem; vertical-align: -0.05rem;
+      background: #333; box-shadow: none; transition: background 0.1s, box-shadow 0.1s;
+    }
+    .hint .dot[hidden] { display: none; }
+    .hint .dot.data { background: #35e07a; box-shadow: 0 0 10px #35e07a, 0 0 2px #fff inset; }
+    .hint .dot.open { background: #e0a635; animation: hint-blink 1s steps(2, start) infinite; }
+    .hint .dot.error, .hint .dot.closed { background: #e04040; box-shadow: 0 0 8px #e04040; }
+    .hint.live { color: var(--fg); font-size: 0.8rem; }
+    .hint.live.nodata { color: #e0a635; }
+    .hint.live.down { color: #e04040; }
+    @keyframes hint-blink { 50% { opacity: 0.25; } }
     /* Text below the viewer */
     .about-piece {
       padding: var(--gap) clamp(1rem, 4vw, 2.5rem);
@@ -208,7 +231,8 @@
   <main>
     <section class="viewer">
       <canvas id="c"></canvas>
-      <div class="hint" id="hint">drag to orbit · scroll to zoom · right-drag to pan · N normals</div>
+      <div class="livebanner" id="livebanner" hidden><b id="bannertitle">no data</b><span id="bannerdetail"></span></div>
+      <div class="hint" id="hint"><span class="dot" id="livedot" hidden></span><span id="hinttext">drag to orbit · scroll to zoom · right-drag to pan · N normals</span></div>
       <div class="pedestals" id="pedestals" hidden>
         <div class="ped" id="ped-a"><label>pedestal <b>A</b> · keys q w e</label><div class="keys"></div></div>
         <div class="states" id="strand-states">
@@ -511,8 +535,9 @@
     controls.update();
 
     // ── live input: Art-Net over a WebSocket replaces the patterns while data flows
-    const HINT = document.getElementById('hint');
-    const HINT_DEFAULT = HINT.textContent;
+    const HINT = document.getElementById('hint'), HINT_TEXT = document.getElementById('hinttext'), DOT = document.getElementById('livedot');
+    const BANNER = document.getElementById('livebanner'), BANNER_TITLE = document.getElementById('bannertitle'), BANNER_DETAIL = document.getElementById('bannerdetail');
+    const HINT_DEFAULT = HINT_TEXT.textContent;
     const liveBytes = new Uint8Array(TOTAL * 3);
 
     // ── Art-Net → LED table. This page stands in for the angio controllers' port configuration:
@@ -580,8 +605,31 @@
       groups.addEventListener('change', () => { map.groups = groups.value; build(); });
       return { isArtnet, ingest, map, build };
     })();
-    const live = { ws: null, url: '', wanted: false, hasData: false, frames: 0, fps: 0, state: 'off', timer: 0 };
-    function liveStatus(text) { HINT.textContent = text ? `live · ${text}` : HINT_DEFAULT; }
+    const live = { ws: null, url: '', wanted: false, hasData: false, frames: 0, fps: 0, state: 'off', timer: 0, lastFrameAt: -1e9 };
+    function liveStatus(text) { HINT_TEXT.textContent = text ? `live · ${text}` : HINT_DEFAULT; }
+    // Activity indicator: green and lit while frames arrive, fading out within ~0.5 s of the stream
+    // stopping; amber blink = socket open but nothing coming; red = connection down.
+    function updateDot() {
+      DOT.hidden = !live.wanted;
+      HINT.classList.toggle('live', live.wanted);
+      if (!live.wanted) { BANNER.hidden = true; return; }
+      const age = performance.now() - live.lastFrameAt;
+      const receiving = age < 700;
+      DOT.className = 'dot ' + (receiving ? 'data' : live.state === 'open' || live.state === 'data' ? 'open' : live.state);
+      DOT.style.opacity = receiving ? String(Math.max(0.35, 1 - Math.max(0, age - 200) / 500)) : '';
+      const down = live.state === 'error' || live.state === 'closed' || live.state === 'connecting';
+      HINT.classList.toggle('nodata', !receiving && !down);
+      HINT.classList.toggle('down', down);
+      BANNER.hidden = receiving;
+      if (!receiving) {
+        BANNER.classList.toggle('down', down);
+        BANNER_TITLE.textContent = down ? 'disconnected' : 'no data';
+        BANNER_DETAIL.textContent = down
+          ? `${live.state} · ${live.url} · is the bridge running?`
+          : live.lastFrameAt < 0 ? `connected to ${live.url} · no frames yet · is luxpi running?`
+          : `connected to ${live.url} · last frame ${(age / 1000).toFixed(0)} s ago`;
+      }
+    }
     function liveConnect(url) {
       liveDisconnect(); live.wanted = true; live.url = url; live.state = 'connecting'; liveStatus(`connecting ${url}`);
       liveBytes.fill(0); bar.classList.add('live');
@@ -596,7 +644,7 @@
         if (artnet.isArtnet(ev.data)) artnet.ingest(ev.data);
         else if (ev.data.byteLength === liveBytes.length) liveBytes.set(new Uint8Array(ev.data));
         else return;
-        live.hasData = true; live.frames++; live.state = 'data';
+        live.hasData = true; live.frames++; live.state = 'data'; live.lastFrameAt = performance.now();
       };
       ws.onclose = () => { live.hasData = false; if (live.ws === ws) { live.ws = null; live.state = 'closed'; }
         if (live.wanted) { liveStatus(`${url} · reconnecting`); live.timer = setTimeout(() => live.wanted && liveConnect(url), 2000); } };
@@ -612,8 +660,13 @@
     }
     setInterval(() => {
       live.fps = live.frames; live.frames = 0;
-      if (live.state === 'data') liveStatus(`${live.url} · ${live.fps} fps`);
-      if (live.state === 'data' && live.fps === 0) { live.state = 'open'; live.hasData = false; liveStatus(`${live.url} · waiting for frames`); }
+      if (!live.wanted) return;
+      const silent = (performance.now() - live.lastFrameAt) / 1000;
+      if (live.state === 'data' && live.fps > 0) liveStatus(`receiving · ${live.fps} fps · ${live.url}`);
+      else if (live.state === 'data' || live.state === 'open') {
+        live.state = 'open'; live.hasData = false;
+        liveStatus(silent < 1e6 ? `connected · no frames for ${Math.floor(silent)} s · ${live.url}` : `connected · waiting for frames · ${live.url}`);
+      }
     }, 1000);
     const panel = document.getElementById('livepanel'), wsInput = document.getElementById('wsurl'), wsGo = document.getElementById('wsgo');
     let savedUrl = ''; try { savedUrl = localStorage.getItem('thread.ws') || ''; } catch (e) {}
@@ -777,6 +830,7 @@
     function frame() {
       requestAnimationFrame(frame);
       const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime;
+      updateDot();
       if (live.wanted) {
         // live mode: only what arrives over the socket, dark until the first frame; the built-in
         // patterns never run, so a dark or frozen sculpture means luxpi isn't sending, not the page
