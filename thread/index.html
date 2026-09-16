@@ -77,6 +77,48 @@
     .livepanel small { color: var(--fg-muted); letter-spacing: 0.02em; line-height: 1.5; }
     .livepanel small a { color: var(--fg); border-bottom: 1px solid var(--fg-muted); }
     .livepanel[hidden], body.embed .livepanel { display: none; }
+    /* Pedestal buttons: drive a live luxpi through the bridge, one screen for the whole game */
+    .pedestals {
+      position: absolute;
+      left: clamp(1rem, 4vw, 2.5rem);
+      top: 1rem;
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      background: rgba(20,20,20,0.85);
+      border: 1px solid #2a2a2a;
+      padding: 0.8rem 1rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      pointer-events: auto;
+      user-select: none;
+    }
+    .pedestals[hidden], body.embed .pedestals { display: none; }
+    .pedestals .ped { display: flex; flex-direction: column; gap: 0.5rem; }
+    .pedestals .ped > label { color: var(--fg-muted); }
+    .pedestals .ped > label b { color: var(--fg); font-weight: 400; }
+    .pedestals .keys { display: flex; gap: 0.5rem; }
+    .pedestals .key {
+      width: 3.2rem; height: 3.2rem; border-radius: 50%;
+      border: 2px solid #444; background: #161616; color: var(--fg);
+      font: inherit; font-size: 1rem; cursor: pointer; touch-action: none;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem;
+      transition: background 0.08s, border-color 0.08s, box-shadow 0.08s;
+    }
+    .pedestals .key small { font-size: 0.55rem; color: var(--fg-muted); letter-spacing: 0.05em; }
+    .pedestals .key:hover { border-color: #777; }
+    .pedestals .key.down { background: #fff; color: #000; border-color: #fff; box-shadow: 0 0 14px #fff8; }
+    .pedestals .key.down small { color: #333; }
+    .pedestals .states { display: flex; flex-direction: column; gap: 0.35rem; justify-content: center; width: 14rem; white-space: nowrap; }
+    .pedestals .states div { display: flex; justify-content: space-between; gap: 1rem; }
+    .pedestals .states span:last-child { color: var(--fg); }
+    .pedestals .states .st-idle { color: var(--fg-muted); }
+    .pedestals .states .st-interactive_a, .pedestals .states .st-interactive_b { color: #6cf; }
+    .pedestals .states .st-interactive_to_connected, .pedestals .states .st-connected { color: #7f7; }
+    .pedestals .states .st-win, .pedestals .states .st-win_strand_pre_win { color: #fd6; }
+    .pedestals .states .off { color: var(--fg-muted); }
+    .pedestals .states .off::after { content: ' (no luxpi)'; }
     .patterns {
       display: flex;
       gap: 1.25rem;
@@ -160,6 +202,16 @@
     <section class="viewer">
       <canvas id="c"></canvas>
       <div class="hint" id="hint">drag to orbit · scroll to zoom · right-drag to pan · N normals</div>
+      <div class="pedestals" id="pedestals" hidden>
+        <div class="ped" id="ped-a"><label>pedestal <b>A</b> · keys q w e</label><div class="keys"></div></div>
+        <div class="states" id="strand-states">
+          <div><span>strand X</span><span data-strand="x">–</span></div>
+          <div><span>strand Y</span><span data-strand="y">–</span></div>
+          <div><span>strand Z</span><span data-strand="z">–</span></div>
+          <div><span>pedestals</span><span id="ped-status">–</span></div>
+        </div>
+        <div class="ped" id="ped-b"><label>pedestal <b>B</b> · keys i o p</label><div class="keys"></div></div>
+      </div>
       <div class="livepanel" id="livepanel" hidden>
         <label>live data source (websocket)</label>
         <div class="row">
@@ -167,7 +219,8 @@
           <button class="go" id="wsgo">connect</button>
         </div>
         <small>Expects one binary message per frame: 21,600 bytes, 12 strings × 600 LEDs × RGB,
-        string-major. The Art-Net bridge in <a href="https://github.com/dnewcome/thread-3d/tree/main/bridge" target="_blank" rel="noopener">thread-3d/bridge</a> speaks this; so can anything else.</small>
+        string-major. <code>python -m luxpi.sim bridge</code> in the thread repo speaks this and also
+        relays the pedestal buttons (top left) to a running game; so can anything else.</small>
       </div>
       <div class="overlay">
         <div>
@@ -451,6 +504,7 @@
       ws.binaryType = 'arraybuffer'; live.ws = ws;
       ws.onopen = () => { live.state = 'open'; liveStatus(`${url} · waiting for frames`); };
       ws.onmessage = ev => {
+        if (typeof ev.data === 'string') { pedestals.onStatus(ev.data); return; }
         if (!(ev.data instanceof ArrayBuffer) || ev.data.byteLength !== liveBytes.length) return;
         liveBytes.set(new Uint8Array(ev.data)); live.hasData = true; live.frames++; live.state = 'data';
       };
@@ -458,11 +512,13 @@
         if (live.wanted) { liveStatus(`${url} · reconnecting`); live.timer = setTimeout(() => live.wanted && liveConnect(url), 2000); } };
       ws.onerror = () => { live.state = 'error'; liveStatus(`${url} · connection failed`); };
       toggleButtons.live?.classList.add('active');
+      pedestals.show(paramOn('pedestals', true));
     }
     function liveDisconnect() {
       live.wanted = false; clearTimeout(live.timer); live.hasData = false;
       if (live.ws) { const w = live.ws; live.ws = null; try { w.close(); } catch (e) {} }
       live.state = 'off'; liveStatus(''); toggleButtons.live?.classList.remove('active');
+      pedestals.show(false);
     }
     setInterval(() => {
       live.fps = live.frames; live.frames = 0;
@@ -475,6 +531,62 @@
     function syncGo() { wsGo.textContent = live.wanted ? 'disconnect' : 'connect'; }
     wsGo.addEventListener('click', () => { if (live.wanted) liveDisconnect(); else liveConnect(wsInput.value.trim()); syncGo(); });
     wsInput.addEventListener('keydown', e => { if (e.key === 'Enter') wsGo.click(); });
+
+    // ── pedestals: arcade buttons for a live game. Presses go to the bridge as
+    //    {"type":"button","podpi":"a","button":"x","pressed":true}; it forwards them to the
+    //    simulated podpis and streams back luxpi's strand states as JSON text messages.
+    const pedestals = (() => {
+      const panel = document.getElementById('pedestals');
+      const KEYS = { a: { q: 'x', w: 'y', e: 'z' }, b: { i: 'x', o: 'y', p: 'z' } };
+      const buttons = { a: {}, b: {} };
+      let lastStatus = 0;
+      function send(podpi, button, pressed) {
+        const el = buttons[podpi][button];
+        if (el.pressed === pressed) return;
+        el.pressed = pressed; el.classList.toggle('down', pressed);
+        if (live.ws && live.ws.readyState === WebSocket.OPEN)
+          live.ws.send(JSON.stringify({ type: 'button', podpi, button, pressed }));
+      }
+      for (const podpi of ['a', 'b']) {
+        const keys = document.querySelector(`#ped-${podpi} .keys`);
+        const hints = Object.fromEntries(Object.entries(KEYS[podpi]).map(([k, b]) => [b, k]));
+        for (const button of ['x', 'y', 'z']) {
+          const el = document.createElement('button');
+          el.className = 'key'; el.innerHTML = `${button.toUpperCase()}<small>${hints[button]}</small>`;
+          el.pressed = false; buttons[podpi][button] = el;
+          el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); send(podpi, button, true); });
+          const up = () => send(podpi, button, false);
+          el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+          keys.appendChild(el);
+        }
+      }
+      window.addEventListener('keydown', e => {
+        if (panel.hidden || e.repeat || e.target.tagName === 'INPUT') return;
+        for (const podpi of ['a', 'b']) { const b = KEYS[podpi][e.key.toLowerCase()]; if (b) { send(podpi, b, true); e.preventDefault(); } }
+      });
+      window.addEventListener('keyup', e => {
+        for (const podpi of ['a', 'b']) { const b = KEYS[podpi][e.key.toLowerCase()]; if (b) send(podpi, b, false); }
+      });
+      window.addEventListener('blur', () => { for (const p of ['a', 'b']) for (const b of ['x', 'y', 'z']) send(p, b, false); });
+      const stateEls = Object.fromEntries([...document.querySelectorAll('#strand-states [data-strand]')].map(el => [el.dataset.strand, el]));
+      const pedStatus = document.getElementById('ped-status');
+      function onStatus(text) {
+        let msg; try { msg = JSON.parse(text); } catch (e) { return; }
+        if (!msg || msg.type !== 'status') return;
+        lastStatus = performance.now();
+        for (const [strand, el] of Object.entries(stateEls)) {
+          const st = msg.states && msg.states[strand];
+          el.textContent = st || 'no luxpi';
+          el.className = st ? `st-${st}` : 'off';
+        }
+        const up = ['a', 'b'].filter(p => msg.podpi && msg.podpi[p]);
+        const seen = ['a', 'b'].filter(p => msg.podpi && p in msg.podpi);
+        pedStatus.textContent = seen.length ? (up.length ? `${up.map(p => p.toUpperCase()).join(' + ')} ok` : 'unreachable') : 'ready';
+        pedStatus.className = up.length || !seen.length ? '' : 'st-idle';
+      }
+      function show(on) { panel.hidden = !on; }
+      return { onStatus, show, get lastStatus() { return lastStatus; } };
+    })();
 
     // ── patterns: f(string s, index i, t) → rgb, modelled on the luxpi animations ──
     const tmp = new THREE.Color();
