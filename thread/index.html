@@ -146,6 +146,8 @@
     .patterns button:hover { opacity: 0.85; }
     .patterns button.active { opacity: 1; border-color: var(--fg); }
     .patterns .sep { width: 1px; background: #333; margin: 0 0.25rem; }
+    .patterns.live button:not(.active):not(.live-toggle) { opacity: 0.25; }
+    .patterns.live button.active:not(.live-toggle) { opacity: 0.45; border-color: transparent; }
     .hint {
       position: absolute;
       top: 1rem;
@@ -582,6 +584,7 @@
     function liveStatus(text) { HINT.textContent = text ? `live · ${text}` : HINT_DEFAULT; }
     function liveConnect(url) {
       liveDisconnect(); live.wanted = true; live.url = url; live.state = 'connecting'; liveStatus(`connecting ${url}`);
+      liveBytes.fill(0); bar.classList.add('live');
       try { localStorage.setItem('thread.ws', url); } catch (e) {}
       let ws;
       try { ws = new WebSocket(url); } catch (e) { live.state = 'error'; liveStatus(`bad url ${url}`); return; }
@@ -605,7 +608,7 @@
       live.wanted = false; clearTimeout(live.timer); live.hasData = false;
       if (live.ws) { const w = live.ws; live.ws = null; try { w.close(); } catch (e) {} }
       live.state = 'off'; liveStatus(''); toggleButtons.live?.classList.remove('active');
-      pedestals.show(false);
+      pedestals.show(false); bar.classList.remove('live');
     }
     setInterval(() => {
       live.fps = live.frames; live.frames = 0;
@@ -745,6 +748,7 @@
       b.addEventListener('click', () => select(idx, true)); bar.appendChild(b); return b;
     });
     function select(idx, manual) {
+      if (manual && live.wanted) liveDisconnect();   // picking a pattern is an explicit way out of live mode
       if (idx === current) return;
       previous = current; current = idx; fade = 0; autoTimer = manual ? -AUTO_SECONDS * 3 : 0;
       patternButtons.forEach((b, i) => b.classList.toggle('active', i === idx));
@@ -763,6 +767,7 @@
     for (const tg of toggles) {
       const b = document.createElement('button'); b.textContent = tg.name; b.classList.toggle('active', tg.get());
       b.addEventListener('click', () => { tg.set(!tg.get()); if (tg.name !== 'live') b.classList.toggle('active', tg.get()); });
+      if (tg.name === 'live') b.classList.add('live-toggle');
       bar.appendChild(b); toggleButtons[tg.name] = b;
     }
     window.addEventListener('keydown', e => { if (e.key === 'n' || e.key === 'N') toggleButtons.normals.click(); });
@@ -772,12 +777,14 @@
     function frame() {
       requestAnimationFrame(frame);
       const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime;
-      autoTimer += dt;
-      if (autoTimer > AUTO_SECONDS) select((current + 1) % AUTO_CYCLE, false);
-      if (live.hasData) {
+      if (live.wanted) {
+        // live mode: only what arrives over the socket, dark until the first frame; the built-in
+        // patterns never run, so a dark or frozen sculpture means luxpi isn't sending, not the page
         for (let i = 0; i < TOTAL; i++) { colorData[i*4] = liveBytes[i*3] / 255; colorData[i*4+1] = liveBytes[i*3+1] / 255; colorData[i*4+2] = liveBytes[i*3+2] / 255; colorData[i*4+3] = 1; }
         colorTex.needsUpdate = true; controls.update(); renderer.render(scene, camera); return;
       }
+      autoTimer += dt;
+      if (autoTimer > AUTO_SECONDS) select((current + 1) % AUTO_CYCLE, false);
       PATTERNS[current].fn(t, bufA, dt);
       let src = bufA;
       if (fade < 1 && previous >= 0) {
