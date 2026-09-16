@@ -232,7 +232,7 @@
     <section class="viewer">
       <canvas id="c"></canvas>
       <div class="livebanner" id="livebanner" hidden><b id="bannertitle">no data</b><span id="bannerdetail"></span></div>
-      <div class="hint" id="hint"><span class="dot" id="livedot" hidden></span><span id="hinttext">drag to orbit · scroll to zoom · right-drag to pan · N normals</span></div>
+      <div class="hint" id="hint"><span class="dot" id="livedot" hidden></span><span id="hinttext">drag to orbit · scroll to zoom · right-drag to pan · space stops the orbit · N normals</span></div>
       <div class="pedestals" id="pedestals" hidden>
         <div class="ped" id="ped-a"><label>pedestal <b>A</b> · keys q w e</label><div class="keys"></div></div>
         <div class="states" id="strand-states">
@@ -332,6 +332,7 @@
     const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
     camera.up.set(0, 0, 1);
 
+    const toggleButtons = {};   // filled in when the pattern bar is built, below
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
@@ -341,7 +342,7 @@
     controls.enablePan = !EMBED;
     controls.minPolarAngle = 0.15;
     controls.maxPolarAngle = Math.PI / 2 + 0.05;   // don't go under the floor
-    controls.addEventListener('start', () => { controls.autoRotate = false; });
+    controls.addEventListener('start', () => { controls.autoRotate = false; toggleButtons.orbit?.classList.remove('active'); });
 
     const uScale = { value: 1 };
     function resize() {
@@ -790,19 +791,20 @@
     bar.appendChild(Object.assign(document.createElement('span'), { className: 'sep' }));
     const toggles = [
       { name: 'live',      get: () => live.wanted, set: on => { panel.hidden = !panel.hidden; if (!panel.hidden) wsInput.focus(); syncGo(); } },
+      { name: 'orbit',     get: () => controls.autoRotate, set: on => { controls.autoRotate = on; } },
       { name: 'facing',    get: () => uniforms.uFacing.value > 0.5, set: on => { uniforms.uFacing.value = on ? 1 : 0; } },
       { name: 'structure', get: () => structure.visible, set: on => { structure.visible = on; } },
       { name: 'glow',      get: () => glow.visible,      set: on => { glow.visible = on; } },
       { name: 'normals',   get: () => quills.visible,    set: on => { quills.visible = on; } },
     ];
-    const toggleButtons = {};
+
     for (const tg of toggles) {
       const b = document.createElement('button'); b.textContent = tg.name; b.classList.toggle('active', tg.get());
       b.addEventListener('click', () => { tg.set(!tg.get()); if (tg.name !== 'live') b.classList.toggle('active', tg.get()); });
       if (tg.name === 'live') b.classList.add('live-toggle');
       bar.appendChild(b); toggleButtons[tg.name] = b;
     }
-    window.addEventListener('keydown', e => { if (e.key === 'n' || e.key === 'N') toggleButtons.normals.click(); });
+    window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === 'n' || e.key === 'N') toggleButtons.normals.click(); if (e.key === ' ') { toggleButtons.orbit.click(); e.preventDefault(); } });
     if (PARAMS.get('ws')) { liveConnect(PARAMS.get('ws')); syncGo(); }
 
     const clock = new THREE.Clock();
