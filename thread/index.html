@@ -168,6 +168,8 @@
     .livebanner b { display: block; font-weight: 400; font-size: clamp(1.4rem, 3vw, 2.2rem); line-height: 1.1; }
     .livebanner span { display: block; margin-top: 0.4rem; font-size: 0.75rem; color: var(--fg-muted); letter-spacing: 0.08em; }
     .livebanner.down { border-color: #e04040; color: #e04040; }
+    .livebanner.asleep { border-color: #6b7fa8; color: #9fb3d9; animation: none; }
+    .hint .dot.asleep { background: #6b7fa8; }
     .hint .dot {
       display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%;
       margin-right: 0.6rem; vertical-align: -0.05rem;
@@ -617,18 +619,25 @@
       const receiving = age < 700;
       DOT.className = 'dot ' + (receiving ? 'data' : live.state === 'open' || live.state === 'data' ? 'open' : live.state);
       DOT.style.opacity = receiving ? String(Math.max(0.35, 1 - Math.max(0, age - 200) / 500)) : '';
-      const down = live.state === 'error' || live.state === 'closed' || live.state === 'connecting';
-      HINT.classList.toggle('nodata', !receiving && !down);
+      const asleep = live.state === 'asleep';
+      const down = !asleep && (live.state === 'error' || live.state === 'closed' || live.state === 'connecting');
+      HINT.classList.toggle('nodata', !receiving && !down && !asleep);
       HINT.classList.toggle('down', down);
       BANNER.hidden = receiving;
       if (!receiving) {
         BANNER.classList.toggle('down', down);
-        BANNER_TITLE.textContent = down ? 'disconnected' : 'no data';
-        BANNER_DETAIL.textContent = down
-          ? `${live.state} · ${live.url} · is the bridge running?`
+        BANNER.classList.toggle('asleep', asleep);
+        BANNER_TITLE.textContent = asleep ? 'asleep' : down ? 'disconnected' : 'no data';
+        BANNER_DETAIL.textContent = asleep
+          ? 'no button presses for a while, so the server went to sleep · press any pedestal button to wake it'
+          : down ? `${live.state} · ${live.url} · is the bridge running?`
           : live.lastFrameAt < 0 ? `connected to ${live.url} · no frames yet · is luxpi running?`
           : `connected to ${live.url} · last frame ${(age / 1000).toFixed(0)} s ago`;
       }
+      // idle countdown in the status line during the last minute before the bridge sleeps
+      const info = pedestals.idleInfo;
+      if (receiving && info && info.limit - info.idle <= 60)
+        HINT_TEXT.textContent = `live · sleeping in ${Math.max(0, info.limit - info.idle)} s unless a button is pressed`;
     }
     function liveConnect(url) {
       liveDisconnect(); live.wanted = true; live.url = url; live.state = 'connecting'; liveStatus(`connecting ${url}`);
@@ -637,7 +646,7 @@
       let ws;
       try { ws = new WebSocket(url); } catch (e) { live.state = 'error'; liveStatus(`bad url ${url}`); return; }
       ws.binaryType = 'arraybuffer'; live.ws = ws;
-      ws.onopen = () => { live.state = 'open'; liveStatus(`${url} · waiting for frames`); };
+      ws.onopen = () => { live.state = 'open'; liveStatus(`${url} · waiting for frames`); pedestals.flush(); };
       ws.onmessage = ev => {
         if (typeof ev.data === 'string') { pedestals.onStatus(ev.data); return; }
         if (!(ev.data instanceof ArrayBuffer)) return;
@@ -646,8 +655,10 @@
         else return;
         live.hasData = true; live.frames++; live.state = 'data'; live.lastFrameAt = performance.now();
       };
-      ws.onclose = () => { live.hasData = false; if (live.ws === ws) { live.ws = null; live.state = 'closed'; }
-        if (live.wanted) { liveStatus(`${url} · reconnecting`); live.timer = setTimeout(() => live.wanted && liveConnect(url), 2000); } };
+      ws.onclose = ev => { live.hasData = false; if (live.ws === ws) { live.ws = null; live.state = ev.code === 4000 ? 'asleep' : 'closed'; }
+        if (!live.wanted) return;
+        if (live.state === 'asleep') { liveStatus(`${url} · asleep, press a pedestal button to wake`); return; }  // server chose to sleep: don't reconnect
+        liveStatus(`${url} · reconnecting`); live.timer = setTimeout(() => live.wanted && liveConnect(url), 2000); };
       ws.onerror = () => { live.state = 'error'; liveStatus(`${url} · connection failed`); };
       toggleButtons.live?.classList.add('active');
       pedestals.show(paramOn('pedestals', true));
@@ -682,13 +693,24 @@
       const panel = document.getElementById('pedestals');
       const KEYS = { a: { q: 'x', w: 'y', e: 'z' }, b: { i: 'x', o: 'y', p: 'z' } };
       const buttons = { a: {}, b: {} };
-      let lastStatus = 0;
+      let lastStatus = 0, idleInfo = null;
+      let queued = [];
       function send(podpi, button, pressed) {
         const el = buttons[podpi][button];
         if (el.pressed === pressed) return;
         el.pressed = pressed; el.classList.toggle('down', pressed);
-        if (live.ws && live.ws.readyState === WebSocket.OPEN)
-          live.ws.send(JSON.stringify({ type: 'button', podpi, button, pressed }));
+        const msg = JSON.stringify({ type: 'button', podpi, button, pressed });
+        if (live.ws && live.ws.readyState === WebSocket.OPEN) { live.ws.send(msg); return; }
+        if (live.wanted && !live.ws) {
+          // asleep (or between reconnects): a press is what wakes the server; queue it for onopen
+          queued.push(msg);
+          if (live.state === 'asleep' || live.state === 'closed') liveConnect(live.url);
+        }
+      }
+      function flush() {
+        if (!live.ws || live.ws.readyState !== WebSocket.OPEN) return;
+        for (const m of queued) live.ws.send(m);
+        queued = [];
       }
       for (const podpi of ['a', 'b']) {
         const keys = document.querySelector(`#ped-${podpi} .keys`);
@@ -717,6 +739,8 @@
         let msg; try { msg = JSON.parse(text); } catch (e) { return; }
         if (!msg || msg.type !== 'status') return;
         lastStatus = performance.now();
+        idleInfo = msg.idle_sleep > 0 ? { idle: msg.idle || 0, limit: msg.idle_sleep } : null;
+        if (msg.sleeping) liveStatus(`${live.url} · going to sleep`);
         for (const [strand, el] of Object.entries(stateEls)) {
           const st = msg.states && msg.states[strand];
           el.textContent = st || 'no luxpi';
@@ -728,7 +752,7 @@
         pedStatus.className = up.length || !seen.length ? '' : 'st-idle';
       }
       function show(on) { panel.hidden = !on; }
-      return { onStatus, show, get lastStatus() { return lastStatus; } };
+      return { onStatus, show, flush, get lastStatus() { return lastStatus; }, get idleInfo() { return idleInfo; } };
     })();
 
     // ── patterns: f(string s, index i, t) → rgb, modelled on the luxpi animations ──
