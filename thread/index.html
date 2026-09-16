@@ -65,6 +65,11 @@
     }
     .livepanel label { text-transform: uppercase; color: var(--fg-muted); }
     .livepanel .row { display: flex; gap: 0.5rem; }
+    .livepanel .row.map { align-items: center; flex-wrap: wrap; }
+    .livepanel .row.map label { font-size: 0.65rem; }
+    .livepanel .row.map select { background: #0c0c0c; border: 1px solid #333; color: var(--fg); font: inherit; font-size: 0.7rem; padding: 0.3rem; flex: 1; }
+    .livepanel .row.map input[type=text] { flex: 0 1 9rem; }
+    .livepanel small i { font-style: italic; }
     .livepanel input {
       flex: 1; background: #0c0c0c; border: 1px solid #333; color: var(--fg);
       font: inherit; font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0; padding: 0.4rem 0.5rem;
@@ -218,9 +223,22 @@
           <input id="wsurl" type="text" spellcheck="false" placeholder="ws://localhost:6480">
           <button class="go" id="wsgo">connect</button>
         </div>
-        <small>Expects one binary message per frame: 21,600 bytes, 12 strings × 600 LEDs × RGB,
-        string-major. <code>python -m luxpi.sim bridge</code> in the thread repo speaks this and also
-        relays the pedestal buttons (top left) to a running game; so can anything else.</small>
+        <div class="row map">
+          <label for="stripb">strip B</label>
+          <select id="stripb">
+            <option value="luxpi">luxpi: universe 2 = px 449→300, 3 = 599→450</option>
+            <option value="doc">doc: universe 2 = px 599→450, 3 = 449→300</option>
+            <option value="none">straight: universe 2 = px 300→449, 3 = 450→599</option>
+          </select>
+          <label for="flip">flip</label><input id="flip" type="checkbox" title="pixel 0 at the other pedestal">
+          <label for="groups">groups</label><input id="groups" type="text" spellcheck="false" title="luxpi strand → tube (0-2) or spine (3)">
+        </div>
+        <small>Takes Art-Net: one binary message per frame holding the raw ArtDmx packets, which is what
+        <code>python -m luxpi.sim bridge</code> in the thread repo sends (it also relays the pedestal
+        buttons, top left, to a running game). Universe → LED is this page's table, standing in for the
+        angio port config: universe <i>u</i> is strand <i>u</i>÷12 (X Y Z W), string (<i>u</i> mod 12)÷4,
+        quarter <i>u</i> mod 4; quarters 0–1 run from pedestal A, 2–3 are strip B as set above.
+        A plain 21,600-byte RGB frame (12 strings × 600 × RGB) is accepted too.</small>
       </div>
       <div class="overlay">
         <div>
@@ -490,10 +508,76 @@
     controls.maxDistance = extent * 3;
     controls.update();
 
-    // ── live input: binary RGB frames over a WebSocket replace the patterns while data flows
+    // ── live input: Art-Net over a WebSocket replaces the patterns while data flows
     const HINT = document.getElementById('hint');
     const HINT_DEFAULT = HINT.textContent;
     const liveBytes = new Uint8Array(TOTAL * 3);
+
+    // ── Art-Net → LED table. This page stands in for the angio controllers' port configuration:
+    //    universe u → strand u÷12 (X,Y,Z,W), string (u mod 12)÷4, quarter u mod 4 of 150 px.
+    //    Quarters 0-1 are strip A from pedestal A; how strip B's two universes land is the open
+    //    question on the hardware, hence the knobs. luxpi's publisher reverses each of universes
+    //    2 and 3 within its 150 px ('luxpi'); the old CSV-tool doc described 2 = 599→450 ('doc').
+    const artnet = (() => {
+      const UNIVERSES = 48, PER = 150;
+      const table = Array.from({ length: UNIVERSES }, () => new Int32Array(PER));
+      const parseGroups = str => {
+        const g = { X: 0, Y: 1, Z: 2, W: 3 };
+        for (const part of (str || '').split(',')) { const [k, v] = part.split('='); if (k && v !== undefined && !isNaN(+v)) g[k.trim().toUpperCase()] = +v; }
+        return g;
+      };
+      let saved = {}; try { saved = JSON.parse(localStorage.getItem('thread.map') || '{}'); } catch (e) {}
+      const map = {
+        stripB: PARAMS.get('stripb') || saved.stripB || 'luxpi',
+        flip: PARAMS.has('flip') ? PARAMS.get('flip') !== '0' : !!saved.flip,
+        groups: PARAMS.get('groups') || saved.groups || 'X=0,Y=1,Z=2,W=3',
+      };
+      function build() {
+        const g = parseGroups(map.groups);
+        for (let u = 0; u < UNIVERSES; u++) {
+          const strand = 'XYZW'[Math.floor(u / 12)], string = Math.floor((u % 12) / 4), k = u % 4;
+          const s = ((g[strand] % 4) + 4) % 4 * 3 + string;
+          for (let j = 0; j < PER; j++) {
+            let p;
+            if (k < 2 || map.stripB === 'none') p = k * PER + j;
+            else if (map.stripB === 'luxpi') p = k * PER + (PER - 1 - j);
+            else p = (N - 1) - ((k - 2) * PER + j);
+            if (map.flip) p = (N - 1) - p;
+            table[u][j] = s * N + p;
+          }
+        }
+        try { localStorage.setItem('thread.map', JSON.stringify(map)); } catch (e) {}
+      }
+      build();
+      const ID = [65, 114, 116, 45, 78, 101, 116, 0];  // "Art-Net\0"
+      function isArtnet(buf) {
+        if (buf.byteLength < 18) return false;
+        const b = new Uint8Array(buf, 0, 8);
+        return ID.every((v, i) => b[i] === v);
+      }
+      function ingest(buf) {
+        const dv = new DataView(buf), b = new Uint8Array(buf);
+        let o = 0;
+        while (o + 18 <= b.length) {
+          if (!ID.every((v, i) => b[o + i] === v)) break;
+          const op = dv.getUint16(o + 8, true), universe = dv.getUint16(o + 14, true), len = dv.getUint16(o + 16, false);
+          const data = o + 18;
+          if (op !== 0x5000) break;                       // only ArtDmx carries a length we can skip by
+          if (universe < UNIVERSES) {
+            const t = table[universe], n = Math.min(PER, Math.floor(len / 3));
+            for (let j = 0; j < n; j++) { const k = t[j] * 3, src = data + j * 3; liveBytes[k] = b[src]; liveBytes[k + 1] = b[src + 1]; liveBytes[k + 2] = b[src + 2]; }
+          }
+          o = data + len;
+        }
+      }
+      // knobs
+      const sel = document.getElementById('stripb'), flip = document.getElementById('flip'), groups = document.getElementById('groups');
+      sel.value = map.stripB; flip.checked = map.flip; groups.value = map.groups;
+      sel.addEventListener('change', () => { map.stripB = sel.value; build(); });
+      flip.addEventListener('change', () => { map.flip = flip.checked; build(); });
+      groups.addEventListener('change', () => { map.groups = groups.value; build(); });
+      return { isArtnet, ingest, map, build };
+    })();
     const live = { ws: null, url: '', wanted: false, hasData: false, frames: 0, fps: 0, state: 'off', timer: 0 };
     function liveStatus(text) { HINT.textContent = text ? `live · ${text}` : HINT_DEFAULT; }
     function liveConnect(url) {
@@ -505,8 +589,11 @@
       ws.onopen = () => { live.state = 'open'; liveStatus(`${url} · waiting for frames`); };
       ws.onmessage = ev => {
         if (typeof ev.data === 'string') { pedestals.onStatus(ev.data); return; }
-        if (!(ev.data instanceof ArrayBuffer) || ev.data.byteLength !== liveBytes.length) return;
-        liveBytes.set(new Uint8Array(ev.data)); live.hasData = true; live.frames++; live.state = 'data';
+        if (!(ev.data instanceof ArrayBuffer)) return;
+        if (artnet.isArtnet(ev.data)) artnet.ingest(ev.data);
+        else if (ev.data.byteLength === liveBytes.length) liveBytes.set(new Uint8Array(ev.data));
+        else return;
+        live.hasData = true; live.frames++; live.state = 'data';
       };
       ws.onclose = () => { live.hasData = false; if (live.ws === ws) { live.ws = null; live.state = 'closed'; }
         if (live.wanted) { liveStatus(`${url} · reconnecting`); live.timer = setTimeout(() => live.wanted && liveConnect(url), 2000); } };
