@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#05060a" />
+<title>voxeled — control</title>
+<style>
+  :root { color-scheme: dark; --pink:#ff5e87; --ink:#eef3ff; --dim:#8da0c2; --panel:rgba(120,150,210,0.12); --line:rgba(120,150,210,0.28); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; min-height:100%; background:#05060a; color:var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 13px; letter-spacing:.5px; text-transform:uppercase; color:var(--pink); margin: 4px 0 2px; font-weight:700; }
+  #name { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  #status { color: var(--dim); font-size: 13px; margin-bottom: 18px; min-height: 18px; }
+  #status .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffcf4d; margin-right:6px; vertical-align:middle; }
+  #status .dot.live { background:#69e08f; }
+  .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); margin: 16px 0 8px; }
+  #scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #scenes button { min-height: 64px; font-size: 16px; font-weight: 600; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; padding: 12px; text-align: left; cursor: pointer; line-height: 1.25; }
+  #scenes button.live { background: var(--pink); border-color: var(--pink); color: #1a0410; }
+  #scenes button.next { border-color: var(--pink); box-shadow: inset 0 0 0 1px var(--pink); }
+  #scenes button:active { transform: scale(0.98); }
+  #xf { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  #xf .ab { display:flex; justify-content:space-between; font-size:13px; margin-bottom: 8px; }
+  #xf .ab b { color: var(--ink); }
+  #xf input[type=range] { width: 100%; height: 44px; accent-color: var(--pink); margin: 0; }
+  #auto { width: 100%; min-height: 52px; margin-top: 12px; font-size: 15px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+  #auto.on { background: var(--pink); border-color: var(--pink); color: #1a0410; }
+  #empty { color: var(--dim); font-size: 14px; padding: 14px; border: 1px dashed var(--line); border-radius: 14px; }
+  #join { display:none; margin-top:16px; }
+  #join.on { display:block; }
+  #joinbtn { width:100%; min-height:64px; font-size:17px; font-weight:800; color:#1a0410; background:var(--pink); border:0; border-radius:14px; cursor:pointer; }
+  #joinbtn.on { background:var(--panel); color:var(--ink); border:1px solid var(--line); }
+  #pixel { display:none; margin-top:12px; height: 38vh; border-radius: 18px; border: 1px solid var(--line); background:#000; transition: background 80ms linear; }
+  #pixel.on { display:block; }
+  #pixel span { display:block; padding:10px 12px; font-size:12px; color:rgba(255,255,255,0.75); text-shadow:0 1px 2px #000; }
+  #wand { display:none; }
+  #wand.on { display:block; }
+  #plan { width:100%; aspect-ratio: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; touch-action: none; display:block; }
+  #wand .row { display:flex; gap:10px; margin-top:10px; }
+  #wand button { flex:1; min-height:48px; font-size:14px; font-weight:700; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:14px; cursor:pointer; }
+  #wand button.on { background: var(--pink); border-color: var(--pink); color:#1a0410; }
+  #wstat { color: var(--dim); font-size: 12px; margin-top: 8px; min-height: 16px; }
+  footer { color:#56688a; font-size: 11px; margin-top: 22px; text-align:center; }
+  footer a { color: #8fd0ff; text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>♥ voxeled</h1>
+<div id="name">—</div>
+<div id="status"><span class="dot" id="dot"></span><span id="stext">connecting…</span></div>
+
+<div class="label">Scenes — tap to fade in</div>
+<div id="scenes"></div>
+<div id="empty" hidden>This piece is running a single pattern right now — nothing to switch between.</div>
+
+<div class="label">Crossfader</div>
+<div id="xf">
+  <div class="ab"><span>◂ <b id="a">A</b></span><span><b id="b">B</b> ▸</span></div>
+  <input id="fader" type="range" min="0" max="1" step="0.005" value="0" />
+  <button id="auto" class="on">⟳ Auto-crossfade</button>
+</div>
+<div id="join">
+  <button id="joinbtn">✦ join the piece — become a pixel</button>
+  <div id="pixel"><span id="ptext">you are pixel —</span></div>
+</div>
+<div id="wand">
+  <div class="label">Wand — you are the light</div>
+  <canvas id="plan"></canvas>
+  <div class="row"><button id="motion">enable motion</button><button id="face">face the piece = forward</button></div>
+  <div id="wstat">drag yourself on the floor plan · point the phone like a wand</div>
+</div>
+<footer>the hub keeps running the show if you close this · <a href="/">3D view</a></footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let scenes = [], state = { mode: "auto", a: 0, b: 1, fader: 0 };
+let lastSend = 0, pending = null, ramp = null;
+
+async function send(qs) {
+  // coalesce to ≤ 1 request / 60 ms so a slider drag doesn't flood the hub
+  const now = performance.now();
+  if (now - lastSend < 60) { clearTimeout(pending); pending = setTimeout(() => send(qs), 60); return; }
+  lastSend = now;
+  try { state = await (await fetch("/control?" + qs)).json(); render(); } catch {}
+}
+
+// Tap a scene: make it deck B and ramp the fader 0→1 over ~1.2 s, then settle it as deck A.
+function fadeTo(k) {
+  if (ramp) clearInterval(ramp);
+  const from = state.mode === "manual" ? state.a : state.a; // current live deck
+  const a = (state.mode === "manual" && state.fader > 0.5) ? state.b : from;
+  if (a === k) { send(`mode=manual&a=${k}&b=${k}&fader=0`); return; }
+  let x = 0;
+  send(`mode=manual&a=${a}&b=${k}&fader=0`);
+  ramp = setInterval(() => {
+    x = Math.min(1, x + 0.05);
+    if (x >= 1) { clearInterval(ramp); ramp = null; send(`mode=manual&a=${k}&b=${k}&fader=0`); return; }
+    send(`mode=manual&a=${a}&b=${k}&fader=${x.toFixed(3)}`);
+  }, 60);
+}
+
+function render() {
+  const manual = state.mode === "manual";
+  $("auto").classList.toggle("on", !manual);
+  const live = manual ? (state.fader > 0.5 ? state.b : state.a) : null;
+  for (const [k, btn] of [...$("scenes").children].entries()) {
+    btn.classList.toggle("live", live === k);
+    btn.classList.toggle("next", manual && state.b === k && state.a !== k && state.fader <= 0.5);
+  }
+  if (document.activeElement !== $("fader")) $("fader").value = manual ? state.fader : 0;
+  $("a").textContent = scenes[state.a] ?? "A";
+  $("b").textContent = scenes[state.b] ?? "B";
+}
+
+$("fader").addEventListener("input", () => { if (ramp) { clearInterval(ramp); ramp = null; } send(`mode=manual&a=${state.a}&b=${state.b}&fader=${$("fader").value}`); });
+$("auto").addEventListener("click", () => send($("auto").classList.contains("on") ? `mode=manual&a=${state.a}&b=${state.b}&fader=${state.fader}` : "mode=auto"));
+
+// ── wand: this phone as a tracker. Position = where you drag yourself on a floor plan of the
+//    piece; orientation = the phone's gyro/compass; sent over the bus as {type:"pose"} at ≤ 30 Hz.
+//    The hub moves any instance tracking this phone and patterns (lantern lampFrom, point, paint)
+//    read it. Enabled when the layout has a `trackers:` entry with source: phone.
+const wand = { on: false, id: null, tracker: null, ws: null, plan: null, pos: null, bearing: 0, pitch: 0, forward: 0, hasMotion: false, last: 0, dirty: false, joined: null, sceneMeta: null };
+const PARAMS = new URLSearchParams(location.search);
+function wandSetup(scene, trackerOverride = null) {
+  const tr = trackerOverride || (scene.meta?.trackers || []).find((t) => t.source === "phone");
+  if (!tr || wand.on) return;
+  wand.on = true; wand.tracker = tr; wand.id = trackerOverride ? tr.name : (PARAMS.get("wand") || tr.name);
+  $("wand").classList.add("on");
+  const insts = scene.meta.instances || [];
+  const xs = insts.map((i) => i.pos[0]), zs = insts.map((i) => i.pos[2]);
+  const pad = 2500, lo = [Math.min(...xs) - pad, Math.min(...zs) - pad], hi = [Math.max(...xs) + pad, Math.max(...zs) + pad];
+  const span = Math.max(hi[0] - lo[0], hi[1] - lo[1]);
+  const c = $("plan"), ctx = c.getContext("2d");
+  wand.pos = [ (lo[0] + hi[0]) / 2, tr.heightMM, hi[1] - pad * 0.5 ];      // start on the near edge of the floor
+  const toPx = (x, z) => [((x - lo[0]) / span) * c.width, ((z - lo[1]) / span) * c.height];
+  const fromPx = (px, py) => [lo[0] + (px / c.width) * span, lo[1] + (py / c.height) * span];
+  function draw() {
+    const w = c.clientWidth; if (c.width !== w) { c.width = w; c.height = w; }
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = "rgba(120,150,210,0.25)"; ctx.lineWidth = 1;
+    for (let g = Math.ceil(lo[0] / 1000) * 1000; g < hi[0]; g += 1000) { const [x] = toPx(g, 0); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, c.height); ctx.stroke(); }
+    for (let g = Math.ceil(lo[1] / 1000) * 1000; g < hi[1]; g += 1000) { const [, y] = toPx(0, g); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke(); }
+    for (const i of insts) { if (i.track === wand.id) continue; const [x, y] = toPx(i.pos[0], i.pos[2]); ctx.fillStyle = "#ff5e87"; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); }
+    const [x, y] = toPx(wand.pos[0], wand.pos[2]);
+    const yaw = ((wand.forward - wand.bearing) * Math.PI) / 180;                 // local heading (−Z = forward = up on the plan)
+    ctx.strokeStyle = "#ffcf4d"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.sin(yaw) * 40, y - Math.cos(yaw) * 40); ctx.stroke();
+    ctx.fillStyle = "#ffcf4d"; ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.fill();
+  }
+  let drag = false;
+  const move = (e) => { const r = c.getBoundingClientRect(); const [x, z] = fromPx(e.clientX - r.left, e.clientY - r.top); wand.pos[0] = x; wand.pos[2] = z; wand.dirty = true; draw(); };
+  c.addEventListener("pointerdown", (e) => { drag = true; c.setPointerCapture(e.pointerId); move(e); });
+  c.addEventListener("pointermove", (e) => { if (drag) move(e); });
+  c.addEventListener("pointerup", () => (drag = false));
+  const onOrient = (e) => {
+    const heading = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? 360 - e.alpha : null); // compass bearing, clockwise
+    if (heading != null) wand.bearing = heading;
+    if (e.beta != null) wand.pitch = Math.max(-90, Math.min(90, e.beta));       // 0 = phone flat (aim horizontal), 90 = upright (aim up)
+    wand.hasMotion = true; wand.dirty = true;
+  };
+  $("motion").addEventListener("click", async () => {
+    try { if (typeof DeviceOrientationEvent !== "undefined" && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); } catch {}
+    addEventListener("deviceorientationabsolute", onOrient, true); addEventListener("deviceorientation", onOrient, true);
+    $("motion").classList.add("on"); $("motion").textContent = "motion on";
+  });
+  $("face").addEventListener("click", () => { wand.forward = wand.bearing; wand.dirty = true; draw(); });
+  busConnect();
+  setInterval(() => {
+    if (!wand.ws || wand.ws.readyState !== 1 || !wand.dirty) return;
+    wand.dirty = false;
+    // rotDeg (Z·Y·X): aim axis +Y → rx = pitch − 90 makes a flat phone aim along −Z; ry = yaw from the compass
+    const rotDeg = [ +(wand.pitch - 90).toFixed(2), +((wand.forward - wand.bearing + 540) % 360 - 180).toFixed(2), 0 ];
+    wand.ws.send(JSON.stringify({ type: "pose", id: wand.id, pos: wand.pos.map((v) => +v.toFixed(1)), rotDeg }));
+  }, 33);
+  addEventListener("resize", draw); draw(); wand.dirty = true;
+}
+
+// One bus socket for everything the phone sends and hears: poses out; frames (our pixel's
+// colour), welcome and scene changes in.
+let busPending = null;
+function busConnect() {
+  if (wand.ws || busPending) return;
+  const ws = busPending = new WebSocket(`ws://${location.host}/bus`); ws.binaryType = "arraybuffer";
+  ws.onopen = () => { wand.ws = ws; busPending = null; if (wand.on) $("wstat").textContent = `wand "${wand.id}" live · drag to move · point the phone`; if (wand.joined) sendHello(); };
+  ws.onclose = () => { wand.ws = null; busPending = null; setTimeout(busConnect, 1500); };
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === "string") {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.type === "welcome" && wand.joined && m.id === wand.joined.id) { wand.joined.index = m.index; $("ptext").textContent = `you are pixel ${m.index} of ${m.total.toLocaleString()} · drag yourself on the plan`; }
+      else if (m.type === "error" && m.of === "hello") { $("ptext").textContent = `can't join: ${m.error}`; }
+      return;
+    }
+    if (wand.joined && wand.joined.index != null) { const d = new Uint8Array(ev.data), i = wand.joined.index * 3; if (i + 2 < d.length) $("pixel").style.background = `rgb(${d[i]},${d[i + 1]},${d[i + 2]})`; }
+  };
+}
+
+// ── join: this phone becomes a pixel of the piece (a `dot` fixture at the wand's position) ──
+function sendHello() {
+  if (!wand.ws || wand.ws.readyState !== 1 || !wand.joined) return;
+  wand.ws.send(JSON.stringify({ type: "hello", id: wand.joined.id, fixture: { type: wand.sceneMeta?.join?.fixture || "dot" }, track: true, ttlS: 30, pos: wand.pos ? wand.pos.map((v) => +v.toFixed(1)) : undefined }));
+}
+function joinSetup(scene) {
+  wand.sceneMeta = scene.meta;
+  if (!scene.meta?.join?.enabled) return;
+  $("join").classList.add("on");
+  let saved = ""; try { saved = localStorage.getItem("voxeled.phone.id") || ""; } catch {}
+  const id = saved || `phone-${Math.random().toString(36).slice(2, 6)}`;
+  try { localStorage.setItem("voxeled.phone.id", id); } catch {}
+  const join = () => {
+    wand.joined = { id, index: null };
+    wandSetup(scene, { name: id, source: "phone", heightMM: scene.meta.join.heightMM ?? 1200, aim: [0, 1, 0] }); // the wand UI, tracking us
+    busConnect(); sendHello();
+    $("joinbtn").classList.add("on"); $("joinbtn").textContent = "✕ leave the piece"; $("pixel").classList.add("on");
+  };
+  const leave = () => {
+    if (wand.ws && wand.ws.readyState === 1) wand.ws.send(JSON.stringify({ type: "bye", id }));
+    wand.joined = null; $("joinbtn").classList.remove("on"); $("joinbtn").textContent = "✦ join the piece — become a pixel"; $("pixel").classList.remove("on");
+  };
+  $("joinbtn").addEventListener("click", () => (wand.joined ? leave() : join()));
+  setInterval(() => { if (wand.joined && wand.ws?.readyState === 1) wand.ws.send(JSON.stringify({ type: "heartbeat", id })); }, 10000);
+  addEventListener("pagehide", () => { if (wand.joined && wand.ws?.readyState === 1) wand.ws.send(JSON.stringify({ type: "bye", id })); });
+  if (PARAMS.get("join") === "1") join();
+}
+
+async function boot() {
+  try {
+    const scene = await (await fetch("scene.json")).json();
+    joinSetup(scene);
+    wandSetup(scene);
+    $("name").textContent = scene.name;
+    scenes = scene.meta?.show?.scenes || [];
+    const single = scene.meta?.show?.single || scenes.length < 2;
+    $("empty").hidden = !single;
+    if (!single) for (const [k, name] of scenes.entries()) {
+      const b = document.createElement("button"); b.textContent = name; b.addEventListener("click", () => fadeTo(k)); $("scenes").appendChild(b);
+    } else $("xf").style.opacity = 0.4;
+    $("dot").classList.add("live"); $("stext").textContent = `${scene.count.toLocaleString()} pixels · ${scene.meta?.instances?.length ?? 1} fixture(s)`;
+    await send("");                   // read current state without changing it
+    setInterval(() => { if (!ramp) send(""); }, 1500); // follow what others (or auto) are doing
+  } catch (e) { $("stext").textContent = "can't reach the hub"; }
+}
+boot();
+</script>
+</body>
+</html>

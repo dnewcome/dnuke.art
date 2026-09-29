@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>voxeled — viewer</title>
+<style>
+  :root { color-scheme: dark; --pink:#ff5e87; --ink:#eef3ff; --dim:#8da0c2; --line:rgba(120,150,210,0.22); --panel:rgba(10,14,24,0.82); }
+  html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #dfe6f3; }
+  canvas { display: block; }
+  .panel { position: fixed; z-index: 10; background: var(--panel); backdrop-filter: blur(8px);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 15px; font-size: 12.5px; line-height: 1.55;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+  #hud { top: 12px; left: 12px; width: 250px; }
+  #hud h1, #build h1 { font-size: 12px; margin: 0 0 8px; letter-spacing: .4px; color: var(--pink); font-weight: 700; text-transform: uppercase; }
+  .row { display: flex; justify-content: space-between; gap: 10px; }
+  .row span:first-child { color: var(--dim); }
+  .row span:last-child { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffcf4d; margin-right:6px; }
+  .dot.live { background:#69e08f; }
+  hr { border: none; border-top: 1px solid rgba(120,150,210,0.16); margin: 10px 0 8px; }
+  #xf .lbl { display:flex; justify-content:space-between; gap:8px; font-size:11px; margin-bottom:5px; }
+  #xf .lbl b { color:var(--ink); font-weight:600; }
+  #xf .lbl .a { color:#ff8fb0; } #xf .lbl .b { color:#8fd0ff; }
+  input[type=range] { width:100%; accent-color:var(--pink); margin:2px 0 8px; }
+  button { cursor:pointer; font-size:11.5px; color:#dfe6f3; background:rgba(120,150,210,0.14); border:1px solid rgba(120,150,210,0.3); border-radius:8px; padding:5px 8px; }
+  button.on { background:var(--pink); border-color:var(--pink); color:#1a0410; font-weight:700; }
+  button:disabled { opacity: .4; cursor: default; }
+  #xf button { width:100%; }
+  #help { position: fixed; bottom: 10px; left: 12px; z-index: 10; color: #56688a; font-size: 11px; }
+  #h-mode.sim { color: #ffcf4d; }
+  /* builder */
+  #build { top: 12px; right: 12px; width: 300px; }
+  #proj { top: 12px; left: 274px; width: 300px; max-height: calc(100vh - 24px); overflow: auto; }
+  #proj select, #proj textarea { width: 100%; box-sizing: border-box; background: #0d1020; color: #dfe4ff; border: 1px solid #2a3252; border-radius: 6px; font: inherit; padding: 4px 6px; }
+  #proj textarea { font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; height: 180px; resize: vertical; }
+  #proj .files { font-size: 11px; color: var(--dim); max-height: 90px; overflow: auto; }
+  #proj .files div { display: flex; justify-content: space-between; gap: 6px; }
+  #proj .files b { color: #dfe4ff; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #drop { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(20,24,48,.75); color: #fff; font-size: 20px; pointer-events: none; }
+  #drop.on { display: flex; }
+  #build[hidden] { display: none; }
+  #build .sel { font-weight: 700; color: var(--ink); font-size: 13px; margin-bottom: 2px; }
+  #build .sub { color: var(--dim); font-size: 11px; margin-bottom: 8px; min-height: 14px; }
+  #build .lab { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--dim); margin: 8px 0 4px; }
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .g3 input, #build select, .g6 input { width: 100%; box-sizing: border-box; font: inherit; font-size: 12px; color: var(--ink);
+    background: rgba(0,0,0,0.35); border: 1px solid rgba(120,150,210,0.3); border-radius: 7px; padding: 4px 6px; font-variant-numeric: tabular-nums; }
+  .g6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .btns button { flex: 1 1 auto; }
+  #b-status { font-size: 11px; color: var(--dim); margin-top: 8px; min-height: 14px; }
+  #b-status.dirty { color: #ffcf4d; }
+  /* presentation (?ui=bar): a pattern bar along the bottom, the live indicator top-right, the piece's
+     own controls top-left — the HUD/help stay out of the way; ?embed=1 hides everything */
+  body.bar #hud, body.bar #help, body.embed #hud, body.embed #help, body.embed #bar, body.embed #livehint, body.embed #livebanner, body.embed #ctl, body.embed #livepanel { display: none; }
+  #bar { position: fixed; z-index: 10; right: clamp(12px, 4vw, 40px); bottom: clamp(14px, 4vh, 36px); display: none; flex-wrap: wrap; justify-content: flex-end; gap: 4px 18px; pointer-events: auto; }
+  body.bar #bar { display: flex; }
+  #bar button { background: none; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 4px 0; color: #fff; opacity: .45; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; transition: opacity .2s, border-color .2s; }
+  #bar button:hover { opacity: .85; }
+  #bar button.on { opacity: 1; border-color: #fff; }
+  #bar .sep { width: 1px; background: #444; margin: 2px 0; }
+  body.bar.live #bar button:not(.on):not(.b-live) { opacity: .25; }
+  body.bar.live #bar button.on:not(.b-live) { opacity: .45; border-color: transparent; }
+  #livehint { position: fixed; z-index: 10; top: 14px; right: clamp(12px, 4vw, 40px); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #6b7a99; pointer-events: none; display: none; }
+  body.bar.live #livehint { display: block; }
+  #livehint .dot { width: 10px; height: 10px; margin-right: 8px; background: #333; box-shadow: none; transition: background .1s, box-shadow .1s; vertical-align: -1px; }
+  #livehint .dot.data { background: #35e07a; box-shadow: 0 0 10px #35e07a; }
+  #livehint .dot.open, #livehint .dot.connecting { background: #e0a635; animation: blink 1s steps(2, start) infinite; }
+  #livehint .dot.error, #livehint .dot.closed { background: #e04040; box-shadow: 0 0 8px #e04040; }
+  #livehint .dot.asleep { background: #6b7fa8; }
+  #livehint.live { color: #dfe6f3; }
+  #livehint.nodata { color: #e0a635; } #livehint.down { color: #e04040; }
+  #livebanner { position: fixed; z-index: 10; left: 50%; top: 64px; transform: translateX(-50%); padding: 14px 26px; border: 2px solid #e0a635; background: rgba(10,12,20,.9); color: #e0a635; text-align: center; letter-spacing: .12em; text-transform: uppercase; pointer-events: none; animation: blink 1.2s steps(2, start) infinite; }
+  #livebanner[hidden] { display: none; } #livebanner b { display: block; font-weight: 400; font-size: clamp(20px, 3vw, 34px); line-height: 1.1; }
+  #livebanner span { display: block; margin-top: 6px; font-size: 11px; color: #8da0c2; letter-spacing: .08em; }
+  #livebanner.down { border-color: #e04040; color: #e04040; } #livebanner.asleep { border-color: #6b7fa8; color: #9fb3d9; animation: none; }
+  @keyframes blink { 50% { opacity: .25; } }
+  #livepanel { right: clamp(12px, 4vw, 40px); bottom: 64px; width: min(420px, calc(100vw - 24px)); }
+  #livepanel .btns { margin-top: 0; } #livepanel input { flex: 1; min-width: 0; }
+  #livepanel small { display: block; color: var(--dim); margin-top: 8px; line-height: 1.5; }
+  #livepanel[hidden] { display: none; }
+  /* the piece's own controls (layout controls:) — button panels + reported state */
+  #ctl { top: 14px; left: clamp(12px, 4vw, 40px); display: none; gap: 22px; align-items: flex-start; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; user-select: none; }
+  body.ctl #ctl { display: flex; } body.bar:not(.ctl) #ctl { display: none; }
+  body:not(.bar) #ctl { top: auto; bottom: 34px; left: 12px; }
+  #ctl .pan { display: flex; flex-direction: column; gap: 8px; } #ctl .pan > label { color: var(--dim); } #ctl .pan > label b { color: var(--ink); font-weight: 400; }
+  #ctl .keys { display: flex; gap: 8px; }
+  #ctl .key { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #444; background: #161616; color: #fff; font-size: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; touch-action: none; transition: background .08s, border-color .08s, box-shadow .08s; padding: 0; }
+  #ctl .key small { font-size: 9px; color: var(--dim); letter-spacing: .05em; } #ctl .key:hover { border-color: #777; }
+  #ctl .key.down { background: #fff; color: #000; border-color: #fff; box-shadow: 0 0 14px #fff8; } #ctl .key.down small { color: #333; }
+  #ctl .st { display: flex; flex-direction: column; gap: 5px; justify-content: center; min-width: 180px; white-space: nowrap; }
+  #ctl .st div { display: flex; justify-content: space-between; gap: 16px; } #ctl .st span:last-child { color: var(--ink); } #ctl .st .off { color: var(--dim); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="hud" class="panel">
+  <h1>♥ voxeled viewer</h1>
+  <div class="row"><span>Scene</span><span id="h-name">—</span></div>
+  <div class="row"><span>Instances</span><span id="h-inst">—</span></div>
+  <div class="row"><span>Pixels</span><span id="h-count">—</span></div>
+  <div class="row"><span>Mode</span><span id="h-mode">dots</span></div>
+  <div class="row"><span>Model</span><span id="h-model">—</span></div>
+  <div class="row" id="r-stand" hidden><span>Standing</span><span id="h-stand">—</span></div>
+  <div class="row" id="r-inputs" hidden title="external streams merged over the show (layout inputs:)"><span>Inputs</span><span id="h-inputs">—</span></div>
+  <div class="row"><span>Bus</span><span id="h-bus"><span class="dot" id="h-dot"></span>waiting…</span></div>
+  <div class="row"><span>Frames/s</span><span id="h-fps">—</span></div>
+  <hr/>
+  <div class="btns" id="view" style="margin-top:0">
+    <button id="v-sim" title="S">sim</button><button id="v-bloom" title="B">bloom</button>
+    <button id="v-model" title="M">model</button><button id="v-normals" title="N">normals</button><button id="v-build" title="E">builder</button><button id="v-stand" title="V — stand at a vantage (site context)" hidden>stand</button><button id="v-proj" title="P — this page's project: layout + the files you dropped in (kept in this browser)" hidden>project</button>
+  </div>
+  <hr/>
+  <div id="xf">
+    <div class="lbl"><span class="a">◂ <b id="xf-a">A</b></span><span class="b"><b id="xf-b">B</b> ▸</span></div>
+    <input id="xf-slider" type="range" min="0" max="1" step="0.005" value="0" />
+    <button id="xf-auto" class="on">⟳ Auto-crossfade</button>
+  </div>
+</div>
+
+<div id="build" class="panel" hidden>
+  <h1>⌘ builder</h1>
+  <div class="sel" id="b-sel">click an instance to select it</div>
+  <div class="sub" id="b-sub"></div>
+  <div class="lab">position (mm)</div>
+  <div class="g3"><input id="b-px" type="number" step="10" /><input id="b-py" type="number" step="10" /><input id="b-pz" type="number" step="10" /></div>
+  <div class="lab">rotation (° x · y · z)</div>
+  <div class="g3"><input id="b-rx" type="number" step="5" /><input id="b-ry" type="number" step="5" /><input id="b-rz" type="number" step="5" /></div>
+  <div class="btns">
+    <button id="b-move" class="on" title="T">↔ move</button><button id="b-rot" title="R">↻ rotate</button>
+    <button id="b-dup">⧉ duplicate</button><button id="b-del" title="Delete">✕ delete</button>
+  </div>
+  <div class="lab">array — count x·y·z, spacing x·y·z (mm)</div>
+  <div class="g6"><input id="b-cx" type="number" value="2" min="1" /><input id="b-cy" type="number" value="1" min="1" /><input id="b-cz" type="number" value="1" min="1" />
+    <input id="b-sx" type="number" value="1500" step="100" /><input id="b-sy" type="number" value="0" step="100" /><input id="b-sz" type="number" value="0" step="100" /></div>
+  <div class="btns"><button id="b-array">▦ make array</button></div>
+  <div class="lab" title="how this fixture's LEDs emit — drives the simulator">emitter — angle° · size · core · soft · gain · glow</div>
+  <div class="g6">
+    <input id="b-ea" type="number" step="5" min="1" max="179" title="viewingAngleDeg: datasheet full angle at 50% (120 = Lambertian, 10 = spot, 170 = diffused rope)" />
+    <input id="b-es" type="number" step="0.05" min="0.05" max="2" title="sizeFrac: body edge as a fraction of pitch (1 = contiguous tiles)" />
+    <input id="b-ec" type="number" step="0.05" min="0.05" max="1" title="coreFrac: lit fraction of the body" />
+    <input id="b-eo" type="number" step="0.05" min="0" max="1" title="softness: edge diffusion of the core" />
+    <input id="b-eg" type="number" step="0.1" min="0" max="5" title="gain: emissive intensity (>1 feeds bloom)" />
+    <input id="b-el" type="number" step="0.1" min="0" max="3" title="glow: bloom contribution" />
+  </div>
+  <div class="lab" title="the patch: where this fixture's pixels are sent">output — protocol · host · port · universe/offset · channel · order</div>
+  <div class="g6">
+    <select id="b-op" title="protocol"><option value="">none</option><option value="artnet">artnet</option><option value="ddp">ddp</option><option value="danmx">danmx</option></select>
+    <input id="b-oh" placeholder="host" title="host / IP" />
+    <input id="b-oport" type="number" placeholder="port" title="UDP port (blank = protocol default)" />
+    <input id="b-ou" type="number" placeholder="uni" title="artnet: start universe · ddp: byte offset · danmx: start pixel" />
+    <input id="b-oc" type="number" placeholder="ch" title="artnet: start channel (1-based)" />
+    <select id="b-ob" title="byte order"><option>rgb</option><option>grb</option><option>bgr</option><option>rbg</option><option>brg</option><option>gbr</option><option>rgbw</option><option>grbw</option></select>
+  </div>
+  <div class="btns"><label style="font-size:11px;color:var(--dim)"><input type="checkbox" id="b-scope" /> apply emitter/output to every <b id="b-scope-fx">fixture</b> instance (fixture default), not just this one</label></div>
+  <div class="lab">add an instance</div>
+  <div class="btns"><select id="b-fixture"></select><button id="b-add">＋ add</button></div>
+  <div class="lab" title="define a fixture from a file (paths are relative to the layout file) and place one">new fixture from a file</div>
+  <div class="g3">
+    <input id="b-nf-name" placeholder="name" title="fixture name" />
+    <select id="b-nf-type" title="mesh: CAD export with LED chips as bodies (STL/OBJ/GLB) · vxl: a baked .vxl.json (Blender / Grasshopper / vox import) · gltf: glTF points"><option value="mesh">mesh (CAD chips)</option><option value="vxl">vxl (baked)</option><option value="gltf">gltf</option></select>
+    <input id="b-nf-scale" type="number" step="any" placeholder="mm/unit" title="scaleToMM: mesh/vxl units → mm (STL in metres: 1000; glTF is metres and defaults to 1000)" />
+  </div>
+  <div class="g3" style="grid-template-columns: 2fr 2fr 1fr">
+    <input id="b-nf-file" placeholder="LED file, e.g. ../../../thread-3d/model-cleaned.stl" title="the LED source file" />
+    <input id="b-nf-struct" placeholder="structure file (optional), e.g. …/thread-structure.glb" title="the sculpture's own CAD, drawn around the LEDs (STL/GLB/OBJ)" />
+    <input id="b-nf-sscale" type="number" step="any" placeholder="mm/unit" title="structure scaleToMM (glTF defaults to 1000)" />
+  </div>
+  <div class="btns"><button id="b-nf-add">＋ create fixture &amp; add one</button></div>
+  <div class="btns"><button id="b-save" style="flex:2">💾 save layout</button></div>
+  <div id="b-status"></div>
+</div>
+
+<div id="proj" class="panel" hidden>
+  <h1>⌂ project</h1>
+  <div class="row"><span>Open</span><span id="p-name">—</span></div>
+  <div class="lab">projects in this browser · examples</div>
+  <select id="p-list"></select>
+  <div class="btns"><button id="p-open">open</button><button id="p-saveas">save as…</button><button id="p-del">delete</button></div>
+  <div class="lab" title="the models, structures, panoramas the layout refers to — drop files anywhere on the page, or add them here. They stay in this browser (IndexedDB), nothing is uploaded.">files</div>
+  <div class="files" id="p-files">—</div>
+  <div class="btns"><button id="p-add">＋ add files…</button><input id="p-add-input" type="file" multiple hidden /></div>
+  <div class="lab" title="the layout (YAML): fixtures, instances, structures, show… — edit and apply, or use the builder (E)">layout</div>
+  <textarea id="p-yaml" spellcheck="false"></textarea>
+  <div class="btns"><button id="p-apply">apply</button><button id="p-save">💾 save</button></div>
+  <div class="lab" title="one JSON file with the layout and every file, base64 — move a project to another browser or host it next to this page">bundle</div>
+  <div class="btns"><button id="p-export">⬇ export</button><button id="p-import">⬆ import…</button><input id="p-import-input" type="file" accept=".json" hidden /></div>
+  <div class="lab" title="live frames from a LAN hub's /bus, merged over this page's show (raw RGB frames or Art-Net over the socket)">live from a hub</div>
+  <div class="btns"><input id="p-ws" placeholder="ws://192.168.1.20:8080/bus" style="flex:2" /><button id="p-ws-go">connect</button></div>
+  <div id="p-status"></div>
+</div>
+<div id="drop">drop files to add them to the project · a .yaml becomes the layout · a bundle .json opens a project</div>
+
+<div id="help">drag orbit · scroll zoom · <b>E</b> builder · <b>S</b> sim · <b>B</b> bloom · <b>M</b> model · <b>N</b> normals · <b>R</b> ropes · <b>O</b> orbit · <b>[</b> <b>]</b> crossfade · <b>A</b> auto · <b>P</b> project</div>
+
+<div id="bar"></div>
+<div id="livehint"><span class="dot" id="l-dot"></span><span id="l-text"></span></div>
+<div id="livebanner" hidden><b id="l-title">no data</b><span id="l-detail"></span></div>
+<div id="livepanel" class="panel" hidden>
+  <div class="lab" style="margin-top:0">live data source (websocket)</div>
+  <div class="btns"><input id="l-url" placeholder="ws://localhost:6480" spellcheck="false" /><button id="l-go">connect</button></div>
+  <small id="l-help">Raw RGB frames (this piece's pixel order) or Art-Net packets, one binary message per frame — a voxeled hub's <code>/bus</code>, or a bridge next to the controller. While connected, only what arrives is shown; pick a pattern to leave live mode.</small>
+</div>
+<div id="ctl" class="panel"></div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "./vendor/OrbitControls.js";
+import { TransformControls } from "./vendor/TransformControls.js";
+import { EffectComposer } from "./vendor/postprocessing/EffectComposer.js";
+import { RenderPass } from "./vendor/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "./vendor/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "./vendor/postprocessing/OutputPass.js";
+import { STLLoader } from "./vendor/loaders/STLLoader.js";
+import { OBJLoader } from "./vendor/loaders/OBJLoader.js";
+import { GLTFLoader } from "./vendor/loaders/GLTFLoader.js";
+
+const $ = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const D2R = Math.PI / 180;
+const qsOn = (name, dflt) => (qs.has(name) ? qs.get(name) !== "0" : dflt);
+// Presentation: ?ui=bar puts a pattern bar + toggles along the bottom (a piece's public page);
+// ?embed=1 is a bare canvas for a tile. Both auto-orbit and hide the authoring HUD.
+const barMode = qs.get("ui") === "bar", embedMode = qsOn("embed", false);
+document.body.classList.toggle("bar", barMode && !embedMode);
+document.body.classList.toggle("embed", embedMode);
+
+// ── renderer / scene / camera ─────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; // sim mode is HDR-ish (emissive > 1) + bloom
+document.body.appendChild(renderer.domElement);
+
+const scene3 = new THREE.Scene();
+scene3.background = new THREE.Color(/^[0-9a-f]{6}$/i.test(qs.get("bg") || "") ? parseInt(qs.get("bg"), 16) : 0x05060a);
+scene3.add(new THREE.HemisphereLight(0x8fa3b8, 0x1a1a1a, 1.1)); // lights only matter for structure meshes
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+keyLight.position.set(0.6, 1, 0.8);
+scene3.add(keyLight);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 500000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.autoRotate = qsOn("orbit", (barMode || embedMode) && !qs.has("scene") && !qs.has("cam"));
+controls.autoRotateSpeed = 0.35;
+controls.enableZoom = controls.enablePan = !embedMode;
+controls.addEventListener("start", () => { controls.autoRotate = false; syncBar(); });
+
+let composer = null, bloomPass = null;
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer?.setSize(innerWidth, innerHeight);
+});
+
+// ── where the scene comes from: a hub (WebSocket + /layout etc.) or this page itself ──────────
+// Static mode (no server: GitHub Pages, a file share, the Thread site) runs the hub in the page
+// (viewer/local.mjs); the same `api` surface serves both, so the builder, crossfader and inputs
+// row don't care. Picked by ?static=1 / ?project= / ?example=, or automatically when there is no
+// scene.json to fetch.
+let api = null, staticMode = qs.get("static") === "1" || qs.has("project") || qs.has("example"), project = null;
+const hubAPI = {
+  kind: "hub",
+  getScene: async () => { const r = await fetch("scene.json"); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); },
+  control: async (params) => { const r = await fetch("/control?" + new URLSearchParams(params)); return r.json(); },
+  getLayout: async () => { const r = await fetch("/layout"); if (!r.ok) throw new Error(`hub has no /layout (HTTP ${r.status})`); return r.json(); },
+  postLayout: async (doc, write) => (await fetch(`/layout${write ? "?write=1" : ""}`, { method: "POST", body: JSON.stringify(doc) })).json(),
+  inputs: async () => (await fetch("inputs")).json(),
+};
+
+// ── state ─────────────────────────────────────────────────────────────────────
+let scene = null, N = 0, mesh = null, simMesh = null, normalsLines = null;
+let simOn = qs.get("sim") === "1", bloomOn = qsOn("bloom", true), normalsOn = qs.get("normals") === "1"; // view state survives scene rebuilds
+let ropesOn = qsOn("ropes", true), ropes = []; // diffused ropes: each strand of a fixture with emitter.diffuserMM as a lit tube (sim mode)
+let modelMode = { translucent: 0, opaque: 1, hidden: 2 }[qs.get("model")] ?? (+qs.get("model") || 0); // 0 translucent · 1 opaque · 2 hidden (?model=opaque)
+let framed = false, groundGrid = null;
+const structures = [];
+// site context: stand at a vantage (V) — camera at the eye, a 360° photo wrapped around it, LEDs on top
+let standing = null, backdrop = null, look = { bearing: 0, pitch: 0, fov: 60 };
+// per-pixel fixture-local geometry, so an instance can be moved live: p = R·local + pos
+let localP = null, localN = null, bodySize = null, instOf = null;
+const instTf = []; // per instance: { pos:[3], rotDeg:[3], R:[[..]] }
+const OFF = new THREE.Color(0x1a2138);
+const SIM_IDLE = new THREE.Color(0.55, 0.52, 0.48); // sim idle: every emitter on, so the physics reads without frames
+
+// small vector helpers (mirror src/vec.mjs — Z·Y·X Euler, degrees)
+function eulerMatrix([rx = 0, ry = 0, rz = 0] = []) {
+  const cx = Math.cos(rx * D2R), sx = Math.sin(rx * D2R), cy = Math.cos(ry * D2R), sy = Math.sin(ry * D2R), cz = Math.cos(rz * D2R), sz = Math.sin(rz * D2R);
+  return [[cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx], [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx], [-sy, cy * sx, cy * cx]];
+}
+const matVec = (R, v) => [R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2], R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2], R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2]];
+const matTVec = (R, v) => [R[0][0] * v[0] + R[1][0] * v[1] + R[2][0] * v[2], R[0][1] * v[0] + R[1][1] * v[1] + R[2][1] * v[2], R[0][2] * v[0] + R[1][2] * v[1] + R[2][2] * v[2]];
+
+// ── the simulator: each LED as an oriented, opaque emissive body ────────────────
+// One shader covers laser → spot → bare LED → diffused strip → rope, from the fixture's emitter
+// profile: lobe exponent p = ln½ / ln cos(viewingAngle/2) (120° ⇒ Lambertian), body = quad facing
+// the normal; FRONT emits colour × lobe × core, BACK is dark backing; both write depth (occlusion).
+const EMIT_DEFAULT = { viewingAngleDeg: 120, sizeFrac: 0.9, coreFrac: 0.5, softness: 0.4, gain: 1.6, glow: 1.0 };
+const lobeP = (deg) => { const c = Math.cos((Math.min(179.5, Math.max(0.5, deg)) * Math.PI) / 360); return Math.log(0.5) / Math.log(Math.max(1e-9, c)); };
+const SIM_VERT = /* glsl */`
+  attribute vec4 aEmit;
+  varying vec3 vWorldPos, vWorldN, vColor; varying vec2 vUv; varying vec4 vEmit;
+  void main() {
+    vUv = uv; vEmit = aEmit;
+    #ifdef USE_INSTANCING_COLOR
+      vColor = instanceColor;
+    #else
+      vColor = vec3(1.0);
+    #endif
+    mat4 im = modelMatrix * instanceMatrix;
+    vec4 wp = im * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    vWorldN = normalize(mat3(im) * vec3(0.0, 0.0, 1.0));
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }`;
+const SIM_FRAG = /* glsl */`
+  precision highp float;
+  varying vec3 vWorldPos, vWorldN, vColor; varying vec2 vUv; varying vec4 vEmit;
+  uniform vec3 uBacking; uniform float uExposure;
+  void main() {
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    float cosT = dot(vWorldN, V);
+    if (cosT <= 0.0) { gl_FragColor = vec4(uBacking, 1.0); return; }   // the dark backside
+    float lobe = pow(cosT, vEmit.x);
+    float d = length(vUv - 0.5) * 2.0;
+    float core = vEmit.y, soft = max(vEmit.z, 0.02);
+    float shape = 1.0 - smoothstep(core * (1.0 - soft), core * (1.0 + soft), d);
+    gl_FragColor = vec4(uBacking + vColor * lobe * shape * vEmit.w * uExposure, 1.0);
+  }`;
+const simMat = new THREE.ShaderMaterial({ vertexShader: SIM_VERT, fragmentShader: SIM_FRAG, uniforms: { uBacking: { value: new THREE.Color(0x0a0c14) }, uExposure: { value: 1.0 } }, side: THREE.DoubleSide });
+
+// ── diffused ropes: a strand of LEDs inside a diffuser, drawn as one lit tube ─────────────────
+// A fixture whose emitter carries `diffuserMM` (a rope fixture, Thread's baked ropes) is drawn per
+// strand as a tube through its LEDs: each ring takes its LED's colour from a per-pixel colour
+// texture (the same frame the dots get), lit through a 270° arc from the LED's normal with the
+// strip's own shadow at its back, dimmed as it turns away from the eye. Thread's page, generalized.
+const COLOR_W = 1024;
+let colorTex = null, colorData = null;
+const ROPE_VERT = /* glsl */`
+  uniform sampler2D uColors; uniform vec2 uTexSize; uniform float uGain;
+  attribute float aLed, aProfile;
+  varying vec3 vColor; varying float vProfile, vFace;
+  void main() {
+    float row = floor(aLed / uTexSize.x), col = aLed - row * uTexSize.x;
+    vColor = texture2D(uColors, vec2((col + 0.5) / uTexSize.x, (row + 0.5) / uTexSize.y)).rgb * uGain;
+    vProfile = aProfile;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vec3 n = normalize(normalMatrix * normal);
+    float f = max(dot(n, normalize(-mv.xyz)), 0.0);
+    vFace = 0.35 + 0.65 * f;
+    gl_Position = projectionMatrix * mv;
+  }`;
+const ROPE_FRAG = /* glsl */`
+  precision highp float; uniform vec3 uBacking;
+  varying vec3 vColor; varying float vProfile, vFace;
+  void main() { gl_FragColor = vec4(uBacking + vColor * vProfile * vFace, 1.0); }`;
+function ensureColorTex(n) {
+  const h = Math.max(1, Math.ceil(n / COLOR_W));
+  if (colorTex && colorTex.image.height === h) return;
+  colorTex?.dispose();
+  colorData = new Uint8Array(COLOR_W * h * 4);
+  colorTex = new THREE.DataTexture(colorData, COLOR_W, h, THREE.RGBAFormat, THREE.UnsignedByteType);
+  colorTex.magFilter = colorTex.minFilter = THREE.NearestFilter; colorTex.colorSpace = THREE.SRGBColorSpace;
+  colorTex.needsUpdate = true;
+}
+// A tube through the strand's LEDs (fixture-local coords): one ring per LED, the ring's "up" is
+// the LED normal (so profile angle = angle from the normal), rings joined by quads. Returns geometry.
+function ropeGeometry(idx, P, Nn, radius, RADIAL = 8) {
+  const n = idx.length, pos = new Float32Array(n * (RADIAL + 1) * 3), nor = new Float32Array(n * (RADIAL + 1) * 3), led = new Float32Array(n * (RADIAL + 1)), prof = new Float32Array(n * (RADIAL + 1));
+  const T = new THREE.Vector3(), U = new THREE.Vector3(), V = new THREE.Vector3(), C = new THREE.Vector3(), D = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    const a = idx[Math.max(0, i - 1)], b = idx[Math.min(n - 1, i + 1)], k = idx[i];
+    T.set(P[b * 3] - P[a * 3], P[b * 3 + 1] - P[a * 3 + 1], P[b * 3 + 2] - P[a * 3 + 2]);
+    if (T.lengthSq() < 1e-9) T.set(0, 1, 0); T.normalize();
+    U.set(Nn[k * 3], Nn[k * 3 + 1], Nn[k * 3 + 2]); U.addScaledVector(T, -U.dot(T));
+    if (U.lengthSq() < 1e-6) U.set(1, 0, 0).addScaledVector(T, -T.x); U.normalize();
+    V.crossVectors(T, U);
+    C.set(P[k * 3], P[k * 3 + 1], P[k * 3 + 2]);
+    for (let j = 0; j <= RADIAL; j++) {
+      const th = (j / RADIAL) * Math.PI * 2, ca = Math.cos(th);
+      D.copy(U).multiplyScalar(ca).addScaledVector(V, Math.sin(th));
+      const vi = i * (RADIAL + 1) + j;
+      pos[vi * 3] = C.x + D.x * radius; pos[vi * 3 + 1] = C.y + D.y * radius; pos[vi * 3 + 2] = C.z + D.z * radius;
+      nor[vi * 3] = D.x; nor[vi * 3 + 1] = D.y; nor[vi * 3 + 2] = D.z;
+      const t = Math.min(1, Math.max(0, (ca + 0.75) / 0.45)); // 270° diffuser: full on the outward half, shadow at the back
+      led[vi] = k; prof[vi] = t * t * (3 - 2 * t) * (0.75 + 0.25 * Math.max(ca, 0));
+    }
+  }
+  const index = [];
+  for (let i = 0; i + 1 < n; i++) for (let j = 0; j < RADIAL; j++) { const a = i * (RADIAL + 1) + j, b = a + RADIAL + 1; index.push(a, a + 1, b, b, a + 1, b + 1); } // CCW seen from outside (V = T × U)
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+  g.setAttribute("aLed", new THREE.BufferAttribute(led, 1)); g.setAttribute("aProfile", new THREE.BufferAttribute(prof, 1));
+  g.setIndex(index);
+  return g;
+}
+
+// ── build / rebuild the scene objects from a scene JSON (in place: camera stays) ──
+function disposeSceneObjects() {
+  for (const o of [mesh, simMesh, normalsLines]) if (o) { scene3.remove(o); o.geometry.dispose(); }
+  for (const st of structures) scene3.remove(st.group);
+  for (const r of ropes) { scene3.remove(r.group); for (const m of r.meshes) { m.geometry.dispose(); m.material.dispose(); } }
+  structures.length = 0; ropes = []; ropePixel = null;
+  mesh = simMesh = normalsLines = null;
+}
+let ropePixel = null; // per pixel: 1 if a rope tube carries it (its sim quad is hidden while ropes are on)
+
+function buildSceneObjects(sc) {
+  disposeSceneObjects();
+  scene = sc;
+  const px = sc.pixels;
+  N = px.length;
+  $("h-name").textContent = sc.name;
+  $("h-count").textContent = N.toLocaleString();
+  $("h-inst").textContent = sc.meta?.instances?.length ?? 1;
+  const show = sc.meta?.show;
+  if (show?.scenes?.length >= 2) { $("xf-a").textContent = show.scenes[0]; $("xf-b").textContent = show.scenes[1]; }
+  $("xf").style.opacity = show?.single ? 0.35 : 1;
+
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const p of px) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p.p[k]); hi[k] = Math.max(hi[k], p.p[k]); }
+  const size = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+  const center = new THREE.Vector3((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+  const diag = Math.max(1, Math.hypot(...size));
+  const pitch = sc.meta?.pitchMM;
+  const ledSize = pitch ? pitch * 0.5 : diag / 400;
+
+  // instance transforms + fixture-local geometry (so the builder can move instances live)
+  instTf.length = 0;
+  for (const it of sc.meta?.instances || []) { const pos = it.pos || [0, 0, 0], rotDeg = it.rotDeg || [0, 0, 0]; instTf.push({ pos, rotDeg, R: eulerMatrix(rotDeg) }); }
+  if (!instTf.length) instTf.push({ pos: [0, 0, 0], rotDeg: [0, 0, 0], R: eulerMatrix([0, 0, 0]) });
+  localP = new Float32Array(N * 3); localN = new Float32Array(N * 3); bodySize = new Float32Array(N); instOf = new Int32Array(N);
+  const emitters = (sc.meta?.instances || []).map((it) => ({ ...EMIT_DEFAULT, ...(it.emitter || {}) }));
+  const bodyBase = pitch ? pitch : (diag / 400) * 2;
+  const aEmit = new Float32Array(N * 4);
+  let maxGlow = 0;
+  for (let i = 0; i < N; i++) {
+    const k = px[i].inst || 0, tf = instTf[k] || instTf[0], e = emitters[k] || EMIT_DEFAULT;
+    instOf[i] = k;
+    const lp = matTVec(tf.R, [px[i].p[0] - tf.pos[0], px[i].p[1] - tf.pos[1], px[i].p[2] - tf.pos[2]]);
+    const ln = matTVec(tf.R, px[i].n);
+    localP.set(lp, i * 3); localN.set(ln, i * 3);
+    bodySize[i] = bodyBase * e.sizeFrac;
+    aEmit.set([lobeP(e.viewingAngleDeg), e.coreFrac, e.softness, e.gain], i * 4);
+    maxGlow = Math.max(maxGlow, e.glow);
+  }
+
+  // dots mode: plain boxes (the map)
+  mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(ledSize, ledSize, ledSize), new THREE.MeshBasicMaterial({ toneMapped: false }), N);
+  // sim mode: oriented emissive bodies
+  const simGeo = new THREE.PlaneGeometry(1, 1);
+  simGeo.setAttribute("aEmit", new THREE.InstancedBufferAttribute(aEmit, 4));
+  simMesh = new THREE.InstancedMesh(simGeo, simMat, N);
+  simMesh.frustumCulled = false;
+  for (let i = 0; i < N; i++) { mesh.setColorAt(i, OFF); simMesh.setColorAt(i, SIM_IDLE); }
+  // normal quills
+  normalsLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x3a6ea5, transparent: true, opacity: 0.5 }));
+  normalsLines.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 6), 3));
+  normalsLines.visible = normalsOn;
+  normalsLines.userData.qlen = ledSize * 3;
+  // ropes: per instance with a diffuser, one tube per strand through its LEDs in data order
+  ensureColorTex(N);
+  ropePixel = new Uint8Array(N);
+  for (let k = 0; k < instTf.length; k++) {
+    const e = emitters[k] || EMIT_DEFAULT, dia = +e.diffuserMM || 0;
+    if (!(dia > 0)) continue;
+    const strands = new Map();
+    for (let i = 0; i < N; i++) if (instOf[i] === k) { const sk = px[i].strand || 0; if (!strands.has(sk)) strands.set(sk, []); strands.get(sk).push(i); }
+    const group = new THREE.Group(); group.name = `ropes:${k}`;
+    const mat = new THREE.ShaderMaterial({ vertexShader: ROPE_VERT, fragmentShader: ROPE_FRAG, uniforms: { uColors: { value: colorTex }, uTexSize: { value: new THREE.Vector2(COLOR_W, colorTex.image.height) }, uGain: { value: e.gain ?? 1 }, uBacking: { value: new THREE.Color(0x07080c) } } });
+    const meshes = [];
+    for (const idx of strands.values()) {
+      if (idx.length < 2) continue;
+      const m = new THREE.Mesh(ropeGeometry(idx, localP, localN, dia / 2), mat);
+      m.frustumCulled = false; group.add(m); meshes.push(m);
+      for (const i of idx) ropePixel[i] = 1;
+    }
+    if (!meshes.length) continue;
+    scene3.add(group); ropes.push({ group, meshes, inst: k, strands: strands.size });
+  }
+  for (let k = 0; k < instTf.length; k++) placeInstance(k);
+  scene3.add(mesh, simMesh, normalsLines);
+  if (ropes.length) console.log("VOXELED_ROPES_READY", ropes.length, "fixture(s)", ropes.reduce((a, r) => a + r.meshes.length, 0), "rope(s)");
+
+  if (!composer) {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene3, camera));
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.45, 0.35);
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+  }
+  bloomPass.strength = 0.9 * (maxGlow || 1);
+
+  if (!framed) {
+    // ground grid at the floor; default vantage from where the light GOES (mean emission direction)
+    const gspan = Math.max(hi[0] - lo[0], hi[2] - lo[2]) * 1.6;
+    const ground = new THREE.GridHelper(gspan, Math.max(6, Math.min(40, Math.round(gspan / 500))), 0x33436b, 0x172036);
+    ground.position.set(center.x, lo[1], center.z);
+    ground.visible = qsOn("grid", !(barMode || embedMode));
+    scene3.add(ground); groundGrid = ground;
+    const nbar = [0, 0, 0];
+    for (const p of px) { nbar[0] += p.n[0]; nbar[1] += p.n[1]; nbar[2] += p.n[2]; }
+    const horiz = Math.hypot(nbar[0], nbar[2]) > 0.05 * N ? [nbar[0], nbar[2]] : [0, 1];
+    const hl = Math.hypot(horiz[0], horiz[1]), zoom = +qs.get("zoom") > 0 ? +qs.get("zoom") : 1; // ?zoom=1.5 → closer
+    camera.up.set(0, 1, 0);
+    camera.position.set(center.x + (horiz[0] / hl) * diag * 1.15 / zoom, center.y + diag * 0.4 / zoom, center.z + (horiz[1] / hl) * diag * 1.15 / zoom);
+    if (qs.has("az") || qs.has("el")) {
+      const az = ((+qs.get("az") || 0) * D2R), el = ((+(qs.get("el") ?? 15)) * D2R), r = diag * 1.2 / zoom;
+      camera.position.set(center.x + r * Math.cos(el) * Math.sin(az), center.y + r * Math.sin(el), center.z + r * Math.cos(el) * Math.cos(az));
+    }
+    controls.target.copy(center);
+    // ?cam=x,y,z&target=x,y,z (mm) pins a view for sharing
+    const vec = (name) => { const a = (qs.get(name) || "").split(",").map(Number); return a.length === 3 && a.every(Number.isFinite) ? a : null; };
+    if (vec("cam")) camera.position.set(...vec("cam"));
+    if (vec("target")) controls.target.set(...vec("target"));
+    controls.update();
+    framed = true;
+  }
+  applyMode();
+  loadStructures(sc);
+  $("r-inputs").hidden = !(sc.meta?.inputs?.length);
+  buildBar(sc); buildControls(sc);
+  const nv = sc.meta?.vantages?.length || 0;
+  $("v-stand").hidden = !nv; $("r-stand").hidden = !nv;
+  if (standing != null) { if (standing < nv) enterVantage(standing, { keepLook: true }); else leaveVantage(); }
+  else if (!framed_stand && nv && qs.has("stand")) { framed_stand = true; const q = qs.get("stand"); const k = sc.meta.vantages.findIndex((v, i) => v.name === q || String(i) === q); if (k >= 0) enterVantage(k); }
+}
+let framed_stand = false;
+
+// Recompute every pixel of instance k from its fixture-local geometry + the instance transform.
+const _dummy = new THREE.Object3D(), _q = new THREE.Quaternion(), _z = new THREE.Vector3(0, 0, 1), _nv = new THREE.Vector3();
+function placeInstance(k) {
+  const tf = instTf[k];
+  const qpos = normalsLines.geometry.attributes.position.array, qlen = normalsLines.userData.qlen;
+  for (let i = 0; i < N; i++) {
+    if (instOf[i] !== k) continue;
+    const p = matVec(tf.R, [localP[i * 3], localP[i * 3 + 1], localP[i * 3 + 2]]);
+    p[0] += tf.pos[0]; p[1] += tf.pos[1]; p[2] += tf.pos[2];
+    const n = matVec(tf.R, [localN[i * 3], localN[i * 3 + 1], localN[i * 3 + 2]]);
+    _dummy.position.set(p[0], p[1], p[2]); _dummy.quaternion.identity(); _dummy.scale.set(1, 1, 1); _dummy.updateMatrix();
+    mesh.setMatrixAt(i, _dummy.matrix);
+    _nv.set(n[0], n[1], n[2]).normalize(); _q.setFromUnitVectors(_z, _nv);
+    const hide = ropesOn && ropePixel?.[i], bs = hide ? 0 : bodySize[i];
+    _dummy.quaternion.copy(_q); _dummy.scale.set(bs, bs, 1); _dummy.updateMatrix();
+    simMesh.setMatrixAt(i, _dummy.matrix);
+    qpos.set([p[0], p[1], p[2], p[0] + n[0] * qlen, p[1] + n[1] * qlen, p[2] + n[2] * qlen], i * 6);
+  }
+  mesh.instanceMatrix.needsUpdate = true; simMesh.instanceMatrix.needsUpdate = true;
+  mesh.instanceColor.needsUpdate = true; simMesh.instanceColor.needsUpdate = true;
+  normalsLines.geometry.attributes.position.needsUpdate = true;
+  for (const st of structures) if (st.inst === k) { st.group.position.set(...tf.pos); st.group.rotation.set(tf.rotDeg[0] * D2R, tf.rotDeg[1] * D2R, tf.rotDeg[2] * D2R, "ZYX"); }
+  for (const r of ropes) if (r.inst === k) { r.group.position.set(...tf.pos); r.group.rotation.set(tf.rotDeg[0] * D2R, tf.rotDeg[1] * D2R, tf.rotDeg[2] * D2R, "ZYX"); }
+}
+
+// ── structures: the sculpture's own CAD around the LEDs ──────────────────────────
+// Model mode (M): translucent context · OPAQUE (see what the armature blocks from any vantage) ·
+// hidden. In the simulator the body is always an opaque, depth-writing occluder.
+async function loadStructures(sc) {
+  const list = sc.meta?.structures || [];
+  const stl = new STLLoader(), obj = new OBJLoader(), gltf = new GLTFLoader();
+  await Promise.all(list.map(async (s) => {
+    try {
+      const res = await fetch(s.url);
+      if (!res.ok) throw new Error(`${res.status} ${s.url}`);
+      let object;
+      if (s.format === "stl") { const g = stl.parse(await res.arrayBuffer()); g.computeVertexNormals(); object = new THREE.Mesh(g); }
+      else if (s.format === "obj") object = obj.parse(await res.text());
+      else { const buf = await res.arrayBuffer(); object = await new Promise((ok, err) => gltf.parse(buf, "", (g) => ok(g.scene), err)); }
+      const mats = {
+        glass: new THREE.MeshStandardMaterial({ color: new THREE.Color(s.color), transparent: true, opacity: s.opacity, depthWrite: false, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.2 }),
+        solid: new THREE.MeshStandardMaterial({ color: new THREE.Color(s.color), side: THREE.DoubleSide, roughness: 0.75, metalness: 0.25 }),
+        sim: new THREE.MeshStandardMaterial({ color: new THREE.Color(s.color), roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide }),
+      };
+      const meshes = [];
+      object.traverse((o) => { if (o.isMesh) { o.material = mats.glass; meshes.push(o); } });
+      const inner = new THREE.Group();
+      inner.add(object);
+      inner.scale.setScalar(s.scaleToMM);
+      inner.rotation.set(s.rotDeg[0] * D2R, s.rotDeg[1] * D2R, s.rotDeg[2] * D2R, "ZYX");
+      inner.position.set(s.pos[0], s.pos[1], s.pos[2]);
+      const outer = new THREE.Group();
+      outer.name = `structure:${s.name}`;
+      outer.add(inner);
+      if (s.parent) { outer.rotation.set(s.parent.rotDeg[0] * D2R, s.parent.rotDeg[1] * D2R, s.parent.rotDeg[2] * D2R, "ZYX"); outer.position.set(s.parent.pos[0], s.parent.pos[1], s.parent.pos[2]); }
+      scene3.add(outer);
+      structures.push({ group: outer, meshes, mats, name: s.name, inst: s.inst ?? (s.parent ? -1 : null) }); // -1: per-fixture but from an older hub (unknown owner)
+    } catch (e) { console.warn("VOXELED_STRUCTURE_FAILED", s.name, e); }
+  }));
+  console.log("VOXELED_STRUCTURES_READY", structures.length, "of", list.length);
+  applyMode();
+}
+
+// ── site context: stand at a vantage ─────────────────────────────────────────────
+// A vantage is a place in the world with a 360° backdrop (equirect photo or a compass-aligned
+// n/e/s/w/u/d cubemap, e.g. from `vox streetview`). The backdrop is a huge sphere/box centred on the
+// eye, drawn first with no depth, so the piece, its structures and the simulator render over the
+// photo at the true bearing and size. Compass: local −Z has bearing site.headingDeg.
+const texLoader = new THREE.TextureLoader();
+const CUBE_ROT = { u: Math.PI, d: Math.PI }; // texture rotation for the up/down faces (verified against the compass test pattern)
+const BACKDROP_R = 200000; // 200 m — far inside the far plane, far outside any piece
+function loadTex(url) { return new Promise((ok, err) => texLoader.load(url, (t) => { t.colorSpace = THREE.SRGBColorSpace; ok(t); }, undefined, err)); }
+async function enterVantage(k, { keepLook = false } = {}) {
+  const v = scene.meta.vantages[k];
+  const H = scene.meta.site?.headingDeg || 0;
+  leaveVantage(true);
+  standing = k;
+  if (!keepLook) look = { bearing: +(qs.get("bearing") ?? v.headingDeg), pitch: +(qs.get("pitch") ?? 0), fov: +(qs.get("fov") ?? v.fovDeg) };
+  try {
+    let mesh;
+    if (v.image) {
+      const tex = await loadTex(v.image.url);
+      const geo = new THREE.SphereGeometry(BACKDROP_R, 64, 32); geo.scale(-1, 1, 1); // seen from inside
+      mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, depthWrite: false, depthTest: false, fog: false, toneMapped: false }));
+      mesh.rotation.y = (H - v.headingDeg - 90) * D2R; // centre column (u=.5 → −X after the mirror) faces v.headingDeg
+    } else {
+      const f = v.cube, order = ["e", "w", "u", "d", "s", "n"]; // three.js box faces +x −x +y −y +z −z, with north at −Z
+      const texs = await Promise.all(order.map((face) => loadTex(f[face].url)));
+      texs.forEach((t, i) => { t.wrapS = THREE.RepeatWrapping; t.repeat.x = -1; t.offset.x = 1; t.center.set(0.5, 0.5); t.rotation = CUBE_ROT[order[i]] || 0; }); // inside of a box: mirror along u; u/d shot facing north
+      const mats = texs.map((t) => new THREE.MeshBasicMaterial({ map: t, depthWrite: false, depthTest: false, side: THREE.BackSide, fog: false, toneMapped: false }));
+      mesh = new THREE.Mesh(new THREE.BoxGeometry(BACKDROP_R, BACKDROP_R, BACKDROP_R), mats);
+      mesh.rotation.y = H * D2R; // compass-aligned faces → local frame
+    }
+    mesh.renderOrder = -100; mesh.frustumCulled = false; mesh.name = "backdrop";
+    if (standing !== k) { [].concat(mesh.material).forEach((m) => m.dispose()); return; } // user moved on while loading
+    backdrop = mesh; backdrop.position.set(...v.pos);
+    scene3.add(backdrop);
+    console.log("VOXELED_STAND_READY", v.name, look.bearing, look.pitch, look.fov);
+  } catch (e) { console.warn("VOXELED_VANTAGE_FAILED", v.name, e); }
+  camera.position.set(...v.pos);
+  controls.enabled = false;
+  if (groundGrid) groundGrid.visible = false;
+  applyLook();
+  applyMode();
+}
+function leaveVantage(silent = false) {
+  if (backdrop) { scene3.remove(backdrop); backdrop.geometry.dispose(); [].concat(backdrop.material).forEach((m) => { m.map?.dispose(); m.dispose(); }); backdrop = null; }
+  if (standing == null) return;
+  standing = null;
+  camera.fov = 45; camera.updateProjectionMatrix();
+  controls.enabled = true;
+  if (groundGrid) groundGrid.visible = true;
+  // step back out to the orbit: keep the eye where it was, look at the piece
+  controls.update();
+  if (!silent) applyMode();
+}
+// look around: bearing (compass, deg) + pitch, fov by wheel — the camera never leaves the eye
+const _dir = new THREE.Vector3(), _at = new THREE.Vector3();
+function applyLook() {
+  if (standing == null) return;
+  const H = scene.meta.site?.headingDeg || 0, t = (H - look.bearing) * D2R, p = look.pitch * D2R;
+  _dir.set(-Math.sin(t) * Math.cos(p), Math.sin(p), -Math.cos(t) * Math.cos(p)); // bearingToLocal, tilted
+  _at.copy(camera.position).add(_dir); camera.up.set(0, 1, 0); camera.lookAt(_at);
+  camera.fov = look.fov; camera.updateProjectionMatrix();
+  $("h-stand").textContent = `${scene.meta.vantages[standing].name} · ${((look.bearing % 360) + 360) % 360 | 0}° · fov ${look.fov | 0}`;
+}
+let lookDrag = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { if (standing != null && e.button === 0) lookDrag = { x: e.clientX, y: e.clientY, b: look.bearing, p: look.pitch }; });
+addEventListener("pointermove", (e) => {
+  if (!lookDrag) return;
+  const k = look.fov / innerHeight; // degrees per pixel at this zoom
+  look.bearing = lookDrag.b - (e.clientX - lookDrag.x) * k; // drag right → look left, like a photo sphere
+  look.pitch = Math.max(-89, Math.min(89, lookDrag.p + (e.clientY - lookDrag.y) * k));
+  applyLook();
+});
+addEventListener("pointerup", () => (lookDrag = null));
+renderer.domElement.addEventListener("wheel", (e) => { if (standing == null) return; e.preventDefault(); look.fov = Math.max(15, Math.min(110, look.fov * (e.deltaY > 0 ? 1.1 : 0.9))); applyLook(); }, { passive: false });
+function cycleStand() { const n = scene?.meta?.vantages?.length || 0; if (!n) return; if (standing == null) enterVantage(0); else if (standing + 1 < n) enterVantage(standing + 1); else leaveVantage(); }
+
+function applyMode() {
+  if (mesh) mesh.visible = !simOn;
+  if (simMesh) simMesh.visible = simOn;
+  for (const r of ropes) r.group.visible = simOn && ropesOn;
+  if (normalsLines) normalsLines.visible = normalsOn;
+  $("v-sim").classList.toggle("on", simOn); $("v-bloom").classList.toggle("on", simOn && bloomOn); $("v-bloom").disabled = !simOn;
+  $("v-normals").classList.toggle("on", normalsOn); $("v-build").classList.toggle("on", buildOn); $("v-stand").classList.toggle("on", standing != null);
+  if (standing == null) $("h-stand").textContent = "orbit";
+  $("v-model").textContent = `model: ${["translucent", "opaque", "hidden"][modelMode]}`; $("v-model").classList.toggle("on", modelMode !== 2);
+  const el = $("h-mode");
+  el.textContent = simOn ? (bloomOn ? "sim + bloom" : "sim") : "dots";
+  el.classList.toggle("sim", simOn);
+  if (bloomPass) bloomPass.enabled = bloomOn;
+  for (const st of structures) { st.group.visible = modelMode !== 2; for (const m of st.meshes) m.material = simOn ? st.mats.sim : modelMode === 1 ? st.mats.solid : st.mats.glass; }
+  if (backdrop) [].concat(backdrop.material).forEach((m) => m.color.setScalar(simOn ? 0.45 : 1));
+  const n = scene?.meta?.structures?.length || 0;
+  $("h-model").textContent = n ? `${structures.length}/${n} · ${["translucent", "opaque", "hidden"][modelMode]}` : "—";
+  if (groundGrid) groundGrid.visible = standing == null && qsOn("grid", !(barMode || embedMode));
+  syncBar();
+}
+
+// ── poses: tracked things (wands, phones, PSN tags) — move their instances, draw a marker ──────
+const trackerMarks = new Map();
+function onPose(m) {
+  for (const k of m.instances || []) {
+    const tf = instTf[k];
+    if (!tf) continue;
+    tf.pos = m.pos.slice(); tf.rotDeg = m.rotDeg.slice(); tf.R = eulerMatrix(tf.rotDeg);
+    placeInstance(k);
+  }
+  let mk = trackerMarks.get(m.id);
+  if (!mk) {
+    const g = new THREE.Group(); g.name = `tracker:${m.id}`;
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(40, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffcf4d })));
+    const aim = new THREE.Mesh(new THREE.ConeGeometry(25, 300, 10), new THREE.MeshBasicMaterial({ color: 0xffcf4d, transparent: true, opacity: 0.6 }));
+    aim.position.set(0, 150, 0); g.add(aim);                                   // the tracker's +Y (its aim axis) as a cone
+    scene3.add(g); mk = g; trackerMarks.set(m.id, g);
+  }
+  mk.position.set(m.pos[0], m.pos[1], m.pos[2]);
+  mk.rotation.set(m.rotDeg[0] * D2R, m.rotDeg[1] * D2R, m.rotDeg[2] * D2R, "ZYX");
+  mk.userData.t = performance.now();
+}
+setInterval(() => { for (const g of trackerMarks.values()) g.visible = performance.now() - g.userData.t < 5000; }, 1000);
+
+// ── inputs: which external streams are live (polled; the merge happens in the hub) ───────────
+setInterval(async () => {
+  if (!scene?.meta?.inputs?.length) return;
+  try {
+    const st = await api.inputs();
+    $("h-inputs").innerHTML = st.inputs.map((i) => `<span style="color:${i.live ? "#6f6" : "#888"}">${i.name}${i.live ? ` ${i.rate}/s` : ""}</span>`).join(" · ") + ` <span style="color:#888">(${st.mode})</span>`;
+  } catch {}
+}, 1000);
+
+// ── boot + live reload ─────────────────────────────────────────────────────────
+async function loadScene() { return api.getScene(); }
+async function boot() {
+  if (!staticMode) {
+    api = hubAPI;
+    try { buildSceneObjects(await loadScene()); connectBus(); }
+    catch (e) { console.log("VOXELED_NO_HUB", e.message, "— static mode"); staticMode = true; }
+  }
+  if (staticMode) await bootStatic();
+  console.log("VOXELED_READY", N);
+  console.log("VOXELED_SIM_READY", scene.meta?.instances?.length ?? 1, "emitter profile(s)");
+  if (qs.get("build") === "1") await toggleBuilder(true);
+  if (qs.has("select")) select(+qs.get("select"));
+  if (qs.has("scene")) pickScene(qs.get("scene"), false);
+}
+async function reloadScene() {
+  const keep = selected != null ? scene.meta.instances[selected]?.name : null;
+  buildSceneObjects(await loadScene());
+  if (buildOn) await refreshLayout();
+  if (keep != null) { const k = scene.meta.instances.findIndex((i) => i.name === keep); if (k >= 0) select(k); else deselect(); }
+}
+
+// ── the normalized pixel bus ──────────────────────────────────────────────────
+const tmp = new THREE.Color();
+let frameCount = 0, lastFpsT = performance.now();
+function connectBus() {
+  const ws = new WebSocket(`ws://${location.host}/bus`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { $("h-dot").classList.add("live"); $("h-bus").lastChild.textContent = "live"; };
+  ws.onclose = () => { $("h-dot").classList.remove("live"); $("h-bus").lastChild.textContent = "closed"; setTimeout(connectBus, 1000); };
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === "string") { // control message from the hub
+      try { const m = JSON.parse(ev.data); if (m.type === "scene") reloadScene(); else if (m.type === "pose") onPose(m); } catch {}
+      return;
+    }
+    applyFrame(new Uint8Array(ev.data));
+  };
+}
+// one frame of the normalized bus (N×3 RGB) → the LEDs, whichever hub produced it
+function applyFrame(d) {
+  if (!mesh) return;
+  const n = Math.min(N, (d.length / 3) | 0);
+  for (let i = 0; i < n; i++) { tmp.setRGB(d[i * 3] / 255, d[i * 3 + 1] / 255, d[i * 3 + 2] / 255); mesh.setColorAt(i, tmp); simMesh.setColorAt(i, tmp); }
+  mesh.instanceColor.needsUpdate = true; simMesh.instanceColor.needsUpdate = true;
+  if (colorData) { for (let i = 0; i < n; i++) { colorData[i * 4] = d[i * 3]; colorData[i * 4 + 1] = d[i * 3 + 1]; colorData[i * 4 + 2] = d[i * 3 + 2]; colorData[i * 4 + 3] = 255; } colorTex.needsUpdate = true; }
+  frameCount++;
+}
+
+// ── static mode: the hub runs in this page ──────────────────────────────────────
+const EXAMPLES = ["columns", "two-hearts", "site", "ropes", "grid-3x3", "facing-hearts", "imported", "patched"];
+const exampleUrl = (name) => new URL(`../examples/mobius-heart/layouts/${name}.yaml`, location.href).href;
+let local = null, store = null;
+async function bootStatic() {
+  local = await import("./local.mjs");
+  store = await import("./store.mjs");
+  $("v-proj").hidden = false;
+  let last = null; try { last = localStorage.getItem("voxeled.project"); } catch {}
+  let p = null;
+  try {
+    if (qs.has("project")) p = await local.loadHostedProject(qs.get("project"));
+    else if (qs.has("example")) p = await local.loadHostedProject(exampleUrl(qs.get("example")));
+    else if (last) p = await store.getProject(last);
+  } catch (e) { console.warn("VOXELED_PROJECT_LOAD_FAILED", e.message); }
+  if (!p) { try { p = await local.loadHostedProject(exampleUrl("columns")); } catch (e) { pstatus(`✗ ${e.message}`); throw e; } }
+  await openProject(p);
+  if (qs.has("ws")) liveConnect(qs.get("ws"));
+}
+function pstatus(msg) { $("p-status").textContent = msg; }
+async function openProject(p) {
+  api?.stop?.();
+  project = p;
+  project.onSave = async (pr) => { await store.putProject(pr); try { localStorage.setItem("voxeled.project", pr.name); } catch {} pstatus(`saved "${pr.name}" in this browser`); console.log("VOXELED_PROJECT_SAVED", pr.name); };
+  api = local.createLocalHub({ project, onFrame: applyFrame, onScene: () => reloadScene(), onMessage: onRemoteMessage });
+  api.onLive(renderLive);
+  buildSceneObjects(api.scene);
+  $("h-dot").classList.add("live"); $("h-bus").lastChild.textContent = "local hub (this page)";
+  $("p-name").textContent = p.name + (p.source ? " · hosted" : "");
+  $("p-yaml").value = p.layout;
+  renderFiles();
+  await refreshProjectList();
+  console.log("VOXELED_LOCAL_HUB", p.name, p.files?.size ?? 0, "file(s)", N, "px");
+}
+function renderFiles() {
+  const names = api?.files?.() || [];
+  $("p-files").innerHTML = names.length ? names.map((n) => `<div><b title="${n}">${n}</b><span>${(project.files.get(n)?.length / 1024).toFixed(0)} KB</span></div>`).join("") : "— (drop STL / GLB / OBJ / .vxl.json / images here)";
+}
+async function refreshProjectList() {
+  const sel = $("p-list"); sel.innerHTML = "";
+  const mine = await store.listProjects();
+  for (const m of mine) { const o = document.createElement("option"); o.value = "p:" + m.name; o.textContent = `${m.name} · ${m.files} file(s)`; sel.appendChild(o); }
+  for (const e of EXAMPLES) { const o = document.createElement("option"); o.value = "e:" + e; o.textContent = `example · ${e}`; sel.appendChild(o); }
+  const cur = project?.source ? null : "p:" + project?.name;
+  if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+async function addFiles(fileList) {
+  let layoutFile = null, bundle = null;
+  for (const f of fileList) {
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    if (/\.ya?ml$/i.test(f.name)) layoutFile = { name: f.name, text: new TextDecoder().decode(bytes) };
+    else if (/\.json$/i.test(f.name) && !/\.vxl\.json$/i.test(f.name) && new TextDecoder().decode(bytes.subarray(0, 40)).includes("voxeledProject")) bundle = new TextDecoder().decode(bytes);
+    else api.addFile(f.name, bytes);
+  }
+  if (bundle) { await openProject(store.importBundle(bundle)); pstatus("bundle opened — save to keep it"); return; }
+  if (layoutFile) {
+    project.layout = layoutFile.text; project.layoutName = layoutFile.name; $("p-yaml").value = layoutFile.text;
+    const r = await api.postLayout(local.parseYAML(layoutFile.text), false);
+    pstatus(r.error ? `✗ ${r.error}` : `layout ${layoutFile.name} applied — save to keep it`);
+  } else { renderFiles(); pstatus(`${fileList.length} file(s) added — apply/save the layout that uses them`); }
+  renderFiles();
+}
+$("v-proj").addEventListener("click", () => toggleProject());
+function toggleProject(on = $("proj").hidden) { $("proj").hidden = !on; $("v-proj").classList.toggle("on", on); }
+$("p-open").addEventListener("click", async () => {
+  const v = $("p-list").value; if (!v) return;
+  try {
+    const p = v.startsWith("e:") ? await local.loadHostedProject(exampleUrl(v.slice(2))) : await store.getProject(v.slice(2));
+    if (!p) return pstatus("✗ not found");
+    await openProject(p); if (!p.source) { try { localStorage.setItem("voxeled.project", p.name); } catch {} }
+    pstatus(p.source ? `opened example ${p.name} — save as… to keep a copy` : `opened ${p.name}`);
+  } catch (e) { pstatus(`✗ ${e.message}`); }
+});
+$("p-saveas").addEventListener("click", async () => {
+  const name = prompt("project name", project.source ? project.name : project.name + "-copy"); if (!name) return;
+  project = { ...project, name: name.trim(), source: null, layout: $("p-yaml").value };
+  await project.onSave(project); // IndexedDB + remembered as the project to reopen
+  $("p-name").textContent = project.name; await refreshProjectList();
+});
+$("p-del").addEventListener("click", async () => { const v = $("p-list").value; if (!v.startsWith("p:")) return; await store.deleteProject(v.slice(2)); await refreshProjectList(); pstatus(`deleted ${v.slice(2)}`); });
+$("p-add").addEventListener("click", () => $("p-add-input").click());
+$("p-add-input").addEventListener("change", (e) => addFiles(e.target.files));
+$("p-apply").addEventListener("click", async () => {
+  try { const r = await api.postLayout(local.parseYAML($("p-yaml").value), false); pstatus(r.error ? `✗ ${r.error}` : `applied · ${r.instances} instance(s) — unsaved`); if (!r.error) project.layout = $("p-yaml").value; }
+  catch (e) { pstatus(`✗ ${e.message}`); }
+});
+$("p-save").addEventListener("click", async () => {
+  try { const doc = local.parseYAML($("p-yaml").value); const r = await api.postLayout(doc, false); if (r.error) return pstatus(`✗ ${r.error}`); project.layout = $("p-yaml").value; if (project.source) project = { ...project, source: null }; await project.onSave(project); $("p-name").textContent = project.name; await refreshProjectList(); }
+  catch (e) { pstatus(`✗ ${e.message}`); }
+});
+$("p-export").addEventListener("click", () => {
+  const blob = new Blob([store.exportBundle({ ...project, layout: $("p-yaml").value })], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${project.name}.voxeled.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+$("p-import").addEventListener("click", () => $("p-import-input").click());
+$("p-import-input").addEventListener("change", async (e) => { const f = e.target.files[0]; if (!f) return; try { await openProject(store.importBundle(await f.text())); pstatus("bundle opened — save to keep it"); } catch (err) { pstatus(`✗ ${err.message}`); } });
+$("p-ws-go").addEventListener("click", () => {
+  if (api.kind !== "local") return;
+  if ($("p-ws-go").textContent === "disconnect") { liveDisconnect(); pstatus("remote disconnected"); return; }
+  const url = $("p-ws").value.trim(); if (!url) return;
+  if (liveConnect(url)) pstatus(`live frames from ${url} (priority over the show)`); else pstatus("✗ bad WebSocket URL");
+});
+// drop files anywhere on the page
+let dragDepth = 0;
+addEventListener("dragenter", (e) => { if (!staticMode) return; e.preventDefault(); dragDepth++; $("drop").classList.add("on"); });
+addEventListener("dragleave", () => { if (!staticMode) return; if (--dragDepth <= 0) { dragDepth = 0; $("drop").classList.remove("on"); } });
+addEventListener("dragover", (e) => { if (staticMode) e.preventDefault(); });
+addEventListener("drop", (e) => { if (!staticMode) return; e.preventDefault(); dragDepth = 0; $("drop").classList.remove("on"); if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files); });
+
+// ── presentation: the pattern bar, live mode, the piece's controls ─────────────────────────
+// The bar lists the show's scenes (click = pin one, crossfading from what's on) and the view
+// toggles; it is the public face of a piece (?ui=bar). Live mode connects a bridge/hub socket:
+// in the bar it is exclusive (only what arrives is shown, dark otherwise — a dark piece means
+// the sender is silent); from the project panel it merges over the show. ?live=merge|only overrides.
+let barButtons = [], barToggles = {}, currentScene = -1;
+function buildBar(sc) {
+  const bar = $("bar"); bar.innerHTML = ""; barButtons = []; barToggles = {};
+  const names = sc.meta?.show?.scenes || [];
+  names.forEach((name, i) => { const b = document.createElement("button"); b.textContent = name; b.addEventListener("click", () => pickScene(i, true)); bar.appendChild(b); barButtons.push(b); });
+  if (names.length) bar.appendChild(Object.assign(document.createElement("span"), { className: "sep" }));
+  const toggles = [
+    ["live", () => api?.live?.wanted, () => { const p = $("livepanel"); p.hidden = !p.hidden; if (!p.hidden) $("l-url").focus(); }, staticMode],
+    ["orbit", () => controls.autoRotate, () => { controls.autoRotate = !controls.autoRotate; }, true],
+    ["sim", () => simOn, () => { simOn = !simOn; applyMode(); }, true],
+    ["glow", () => simOn && bloomOn, () => { bloomOn = !bloomOn; applyMode(); }, true],
+    ["ropes", () => simOn && ropesOn, () => { ropesOn = !ropesOn; for (let k = 0; k < instTf.length; k++) placeInstance(k); applyMode(); }, ropes.length > 0],
+    ["model", () => modelMode !== 2, () => { modelMode = (modelMode + 1) % 3; applyMode(); }, (sc.meta?.structures?.length || 0) > 0],
+    ["normals", () => normalsOn, () => { normalsOn = !normalsOn; applyMode(); }, true],
+  ];
+  for (const [name, get, set, show] of toggles) {
+    if (!show) continue;
+    const b = document.createElement("button"); b.textContent = name; b.className = "b-" + name;
+    b.addEventListener("click", () => { set(); syncBar(); });
+    bar.appendChild(b); barToggles[name] = b;
+  }
+  syncBar();
+}
+function syncBar() {
+  barButtons.forEach((b, i) => b.classList.toggle("on", i === currentScene));
+  const t = barToggles;
+  if (t.live) t.live.classList.toggle("on", !!api?.live?.wanted);
+  if (t.orbit) t.orbit.classList.toggle("on", controls.autoRotate);
+  if (t.sim) t.sim.classList.toggle("on", simOn);
+  if (t.glow) t.glow.classList.toggle("on", simOn && bloomOn);
+  if (t.ropes) t.ropes.classList.toggle("on", simOn && ropesOn);
+  if (t.model) t.model.classList.toggle("on", modelMode !== 2);
+  if (t.normals) t.normals.classList.toggle("on", normalsOn);
+  document.body.classList.toggle("live", !!api?.live?.wanted);
+}
+// pin a scene (index or name); picking one by hand is the way out of live mode, as on a stage
+async function pickScene(which, manual) {
+  if (manual && api?.live?.wanted && liveOnly()) liveDisconnect();
+  if (manual) { controls.autoRotate = false; autoBtn.classList.remove("on"); }
+  try { const r = await api.control({ scene: which }); if (r.error) console.warn("VOXELED_SCENE", r.error); else { currentScene = r.current; syncBar(); } } catch {}
+}
+setInterval(async () => { if (!api || !barButtons.length) return; try { const r = await api.control({}); if (typeof r.current === "number" && r.current !== currentScene) { currentScene = r.current; syncBar(); } } catch {} }, 1000);
+
+// live mode
+const liveOnly = () => (qs.has("live") ? qs.get("live") === "only" : barMode || embedMode);
+function liveConnect(url) {
+  if (api?.kind !== "local") return false;
+  $("l-url").value = url; $("p-ws").value = url;
+  try { localStorage.setItem("voxeled.ws", url); } catch {}
+  const ok = api.connectRemote(url, { only: liveOnly() });
+  if (ok) { $("l-go").textContent = "disconnect"; $("p-ws-go").textContent = "disconnect"; showControls(qsOn("controls", true)); }
+  syncBar(); renderLive(api.live);
+  return ok;
+}
+function liveDisconnect() { api?.disconnectRemote?.(); $("l-go").textContent = "connect"; $("p-ws-go").textContent = "connect"; $("livebanner").hidden = true; showControls(false); syncBar(); renderLive(api?.live); }
+$("l-go").addEventListener("click", () => { if (api?.live?.wanted) liveDisconnect(); else { const u = $("l-url").value.trim(); if (u) liveConnect(u); } });
+$("l-url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("l-go").click(); });
+{ let saved = ""; try { saved = localStorage.getItem("voxeled.ws") || ""; } catch {} $("l-url").value = qs.get("ws") || saved || "ws://localhost:6480"; }
+// the indicator: green and lit while frames arrive, amber = open but silent, red = down, blue = asleep
+let lastLiveState = "";
+function renderLive(L) {
+  const hint = $("livehint"), dot = $("l-dot"), text = $("l-text"), banner = $("livebanner");
+  if (L && L.wanted && L.state !== lastLiveState) { lastLiveState = L.state; console.log("VOXELED_LIVE", L.state, L.url); }
+  if (L && !L.wanted && lastLiveState) { lastLiveState = ""; console.log("VOXELED_LIVE off"); }
+  if (!L || !L.wanted) { hint.className = ""; dot.className = "dot"; text.textContent = ""; banner.hidden = true; return; }
+  const age = Date.now() - L.lastFrameAt, receiving = L.lastFrameAt && age < 700;
+  const asleep = L.state === "asleep", down = !asleep && ["error", "closed", "connecting"].includes(L.state);
+  dot.className = "dot " + (receiving ? "data" : L.state);
+  hint.className = "live" + (!receiving && !down && !asleep ? " nodata" : "") + (down ? " down" : "");
+  text.textContent = receiving ? `live · ${L.fps} fps · ${L.url}` : asleep ? `live · asleep · press a button to wake` : down ? `live · ${L.state} · ${L.url}` : L.lastFrameAt ? `live · no frames for ${Math.floor(age / 1000)} s` : `live · connected · waiting for frames`;
+  banner.hidden = receiving || !liveOnly();
+  if (!banner.hidden) {
+    banner.classList.toggle("down", down); banner.classList.toggle("asleep", asleep);
+    $("l-title").textContent = asleep ? "asleep" : down ? "disconnected" : "no data";
+    $("l-detail").textContent = asleep ? "no button presses for a while, so the server went to sleep · press any button to wake it"
+      : down ? `${L.state} · ${L.url} · is the bridge running?` : !L.lastFrameAt ? `connected to ${L.url} · no frames yet · is the sender running?` : `connected to ${L.url} · last frame ${(age / 1000).toFixed(0)} s ago`;
+  }
+  if (receiving && ctlSleep && ctlSleep.limit - ctlSleep.idle <= 60) text.textContent = `live · sleeping in ${Math.max(0, ctlSleep.limit - ctlSleep.idle) | 0} s unless a button is pressed`;
+}
+setInterval(() => { if (api?.live?.wanted) renderLive(api.live); }, 250);
+
+// the piece's controls (layout `controls:`): button panels that speak JSON over the socket, and
+// the state the far end reports, shown next to them — Thread's pedestals + strand states
+let ctlKeys = {}, ctlButtons = {}, ctlStatus = null, ctlSleep = null;
+function buildControls(sc) {
+  const c = sc.meta?.controls, el = $("ctl"); el.innerHTML = ""; ctlKeys = {}; ctlButtons = {}; ctlStatus = null; ctlSleep = null;
+  if (!c || !c.panels?.length) { showControls(false); return; }
+  const panels = c.panels, status = c.status;
+  const mk = (p, pi) => {
+    const pan = document.createElement("div"); pan.className = "pan";
+    const keyOf = Object.fromEntries(Object.entries(p.keys || {}).map(([k, b]) => [b, k]));
+    const hint = Object.keys(p.keys || {}).length ? ` · keys ${Object.keys(p.keys).join(" ")}` : "";
+    pan.innerHTML = `<label>${esc(p.name)}${hint}</label><div class="keys"></div>`;
+    const keys = pan.querySelector(".keys");
+    for (const b of p.buttons) {
+      const btn = document.createElement("button"); btn.className = "key"; btn.innerHTML = `${esc(b.toUpperCase())}${keyOf[b] ? `<small>${esc(keyOf[b])}</small>` : ""}`;
+      btn.pressed = false; ctlButtons[`${pi}:${b}`] = { el: btn, panel: p, button: b };
+      btn.addEventListener("pointerdown", (e) => { e.preventDefault(); btn.setPointerCapture(e.pointerId); ctlPress(pi, b, true); });
+      const up = () => ctlPress(pi, b, false);
+      btn.addEventListener("pointerup", up); btn.addEventListener("pointercancel", up); btn.addEventListener("lostpointercapture", up);
+      keys.appendChild(btn);
+    }
+    for (const [k, b] of Object.entries(p.keys || {})) ctlKeys[k] = [pi, b];
+    return pan;
+  };
+  console.log("VOXELED_CONTROLS", panels.length, "panel(s)", panels.reduce((a, p) => a + p.buttons.length, 0), "button(s)");
+  panels.forEach((p, pi) => {
+    el.appendChild(mk(p, pi));
+    if (pi === 0 && status?.fields?.length) {
+      const st = document.createElement("div"); st.className = "st";
+      st.innerHTML = status.fields.map((f, i) => `<div><span>${esc(f.label)}</span><span class="off" data-f="${i}">–</span></div>`).join("");
+      el.appendChild(st); ctlStatus = { type: status.type, fields: status.fields, els: [...st.querySelectorAll("[data-f]")] };
+    }
+  });
+  showControls(!!api?.live?.wanted && qsOn("controls", true));
+}
+const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+function showControls(on) { document.body.classList.toggle("ctl", on && Object.keys(ctlButtons).length > 0); }
+function ctlPress(pi, b, pressed) {
+  const st = ctlButtons[`${pi}:${b}`]; if (!st || st.el.pressed === pressed) return;
+  st.el.pressed = pressed; st.el.classList.toggle("down", pressed);
+  const fill = (v) => (v === "$button" ? b : v === "$pressed" ? pressed : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)])) : v);
+  api?.send?.(fill(st.panel.message));
+}
+const pathGet = (o, p) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
+const showVal = (v) => (v == null ? "–" : typeof v === "object" ? (Array.isArray(v) ? v.join(" + ") : Object.entries(v).filter(([, x]) => x).map(([k]) => k.toUpperCase()).join(" + ") || "–") : String(v));
+function onRemoteMessage(m) {
+  if (!ctlStatus || m.type !== ctlStatus.type) return;
+  ctlStatus.fields.forEach((f, i) => { const v = pathGet(m, f.path); const el = ctlStatus.els[i]; el.textContent = showVal(v); el.className = v == null ? "off" : ""; });
+  console.log("VOXELED_CTL_STATUS", ctlStatus.fields.map((f, i) => `${f.label}=${ctlStatus.els[i].textContent}`).join(" · "));
+  ctlSleep = m.idle_sleep > 0 ? { idle: m.idle || 0, limit: m.idle_sleep } : null;
+}
+addEventListener("keydown", (e) => { if (e.repeat || ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) || !document.body.classList.contains("ctl")) return; const k = ctlKeys[e.key.toLowerCase()]; if (k) { ctlPress(k[0], k[1], true); e.preventDefault(); } });
+addEventListener("keyup", (e) => { const k = ctlKeys[e.key.toLowerCase()]; if (k) ctlPress(k[0], k[1], false); });
+addEventListener("blur", () => { for (const [key, st] of Object.entries(ctlButtons)) if (st.el.pressed) ctlPress(+key.split(":")[0], st.button, false); });
+// a host page (an iframe's parent) can drive the viewer: keys, a scene, a socket
+addEventListener("message", (e) => {
+  const m = e.data; if (!m || m.voxeled == null) return;
+  if (m.voxeled === "key" && m.key) { const k = ctlKeys[String(m.key).toLowerCase()]; if (k && document.body.classList.contains("ctl")) ctlPress(k[0], k[1], m.type !== "keyup"); }
+  else if (m.voxeled === "scene") pickScene(m.scene, true);
+  else if (m.voxeled === "connect") { if (m.url) liveConnect(m.url); else liveDisconnect(); }
+});
+
+// ── crossfade control → hub /control ─────────────────────────────────────────
+const slider = $("xf-slider"), autoBtn = $("xf-auto");
+let lastSend = 0, pendingT = null;
+function sendControl(q) {
+  const now = performance.now();
+  if (now - lastSend < 60) { clearTimeout(pendingT); pendingT = setTimeout(() => sendControl(q), 60); return; }
+  lastSend = now;
+  api?.control(new URLSearchParams(q)).catch(() => {});
+}
+function goManual() { autoBtn.classList.remove("on"); sendControl(`mode=manual&a=0&b=1&fader=${slider.value}`); }
+slider.addEventListener("input", goManual);
+autoBtn.addEventListener("click", () => { const on = !autoBtn.classList.contains("on"); autoBtn.classList.toggle("on", on); if (on) sendControl("mode=auto"); else goManual(); });
+
+// ── builder ────────────────────────────────────────────────────────────────────
+// Edits the same layout file the hub loaded: GET /layout gives the doc + expanded instances (with
+// `src` → which layout entry each came from); every edit POSTs the doc back (applied live, the hub
+// rebroadcasts the scene, we rebuild in place); Save writes the YAML.
+let buildOn = false, selected = null, layout = null, dirty = false;
+const gizmo = new TransformControls(camera, renderer.domElement);
+const proxy = new THREE.Object3D();
+proxy.rotation.order = "ZYX";
+scene3.add(proxy, gizmo);
+gizmo.visible = false; gizmo.enabled = false;
+gizmo.setTranslationSnap(10); gizmo.setRotationSnap(5 * D2R);
+const boxHelper = new THREE.Box3Helper(new THREE.Box3(), 0xff5e87);
+boxHelper.visible = false;
+scene3.add(boxHelper);
+const raycaster = new THREE.Raycaster();
+
+let hubStale = false; // the hub process predates the builder (no /layout, no src/inst in the scene)
+async function refreshLayout() {
+  layout = await api.getLayout();
+  const sel = $("b-fixture");
+  sel.innerHTML = "";
+  for (const k of Object.keys(layout.doc?.fixtures || {})) { const o = document.createElement("option"); o.value = k; o.textContent = k; sel.appendChild(o); }
+}
+function markHubStale(why) {
+  hubStale = true;
+  status(api?.kind === "local" ? `✗ ${why}` : `✗ ${why} — the hub is running older code than this page. Restart it: Ctrl-C, then npm run demo`, true);
+  for (const b of $("build").querySelectorAll("button, input, select")) b.disabled = true;
+  console.warn("VOXELED_HUB_STALE", why);
+}
+async function toggleBuilder(on) {
+  buildOn = on;
+  $("build").hidden = !on;
+  $("v-build").classList.toggle("on", on);
+  if (!on) { deselect(); return; }
+  try { await refreshLayout(); } catch (e) { markHubStale(e.message); return; }
+  const inst = scene?.meta?.instances || [];
+  if (inst.length && !inst.some((i) => i.src)) { markHubStale("scene carries no builder metadata (src)"); return; }
+  console.log("VOXELED_BUILDER_READY", layout?.instances?.length ?? 0);
+}
+function entryOf(k) { const src = scene.meta.instances[k]?.src; return src ? { entry: layout.doc.instances[src.i], src } : null; }
+function status(msg, isDirty) { dirty = isDirty ?? dirty; const s = $("b-status"); s.textContent = msg; s.classList.toggle("dirty", dirty); }
+
+function select(k) {
+  if (!scene?.meta?.instances?.[k] || hubStale) return;
+  selected = k;
+  const inst = scene.meta.instances[k], tf = instTf[k];
+  const e = entryOf(k);
+  if (!e) { deselect(); markHubStale("this instance has no layout entry"); return; }
+  const generated = e && (e.entry.array || e.entry.ring);
+  $("b-sel").textContent = `${inst.name}  ·  ${inst.fixture}`;
+  const worldStructs = (scene.meta?.structures || []).filter((s) => s.inst == null).length;
+  $("b-sub").textContent = (generated ? `element ${e.src.k} of a generated ${e.entry.array ? "array" : "ring"} — moving it moves the whole ${e.entry.array ? "array" : "ring"}` : `layout entry #${e?.src?.i ?? "?"}`)
+    + (worldStructs ? ` · ${worldStructs} world-placed structure(s) stay put (attach CAD to a fixture to move it along)` : "");
+  fillFields(tf);
+  fillEmitterAndOutput(inst);
+  proxy.position.set(...tf.pos);
+  proxy.rotation.set(tf.rotDeg[0] * D2R, tf.rotDeg[1] * D2R, tf.rotDeg[2] * D2R, "ZYX");
+  gizmo.attach(proxy); gizmo.visible = true; gizmo.enabled = true;
+  $("b-rot").disabled = !!generated;
+  if (generated && gizmo.mode === "rotate") setGizmoMode("translate");
+  updateBox();
+  boxHelper.visible = true;
+}
+function deselect() { selected = null; gizmo.detach(); gizmo.visible = false; gizmo.enabled = false; boxHelper.visible = false; $("b-sel").textContent = "click an instance to select it"; $("b-sub").textContent = ""; }
+function fillFields(tf) { ["px", "py", "pz"].forEach((id, i) => ($("b-" + id).value = Math.round(tf.pos[i]))); ["rx", "ry", "rz"].forEach((id, i) => ($("b-" + id).value = +tf.rotDeg[i].toFixed(1))); }
+
+// ── emitter + patch editing: the selected instance's effective values, written back to its
+// layout entry (or, with the scope box, to the fixture definition so every instance inherits) ──
+const EMIT_FIELDS = [["ea", "viewingAngleDeg"], ["es", "sizeFrac"], ["ec", "coreFrac"], ["eo", "softness"], ["eg", "gain"], ["el", "glow"]];
+function fillEmitterAndOutput(inst) {
+  const em = { ...EMIT_DEFAULT, ...(inst.emitter || {}) };
+  for (const [id, key] of EMIT_FIELDS) $("b-" + id).value = em[key];
+  const o = inst.output || {};
+  $("b-op").value = o.protocol || "";
+  $("b-oh").value = o.host || "";
+  $("b-oport").value = o.port ?? "";
+  $("b-ou").value = o.protocol === "ddp" ? (o.offset ?? "") : o.protocol === "danmx" ? (o.startPixel ?? "") : (o.universe ?? "");
+  $("b-oc").value = o.channel ?? "";
+  $("b-ob").value = o.byteOrder || "rgb";
+  $("b-scope-fx").textContent = inst.fixture;
+}
+// where edits go: the instance's own layout entry, or the fixture definition (scope box)
+function editTarget() {
+  const e = entryOf(selected); if (!e) return null;
+  if ($("b-scope").checked) { const fx = scene.meta.instances[selected].fixture; return (layout.doc.fixtures[fx] ||= {}); }
+  return e.entry;
+}
+async function commitEmitter() {
+  const t = editTarget(); if (!t) return;
+  const em = {};
+  for (const [id, key] of EMIT_FIELDS) { const v = +$("b-" + id).value; if (Number.isFinite(v)) em[key] = v; }
+  t.emitter = em;
+  await postLayout(false);
+}
+async function commitOutput() {
+  const t = editTarget(); if (!t) return;
+  const protocol = $("b-op").value;
+  if (!protocol) { delete t.output; return postLayout(false); }
+  const num = (id) => { const v = $("b-" + id).value; return v === "" ? undefined : +v; };
+  const out = { protocol, host: $("b-oh").value.trim() || undefined, port: num("oport"), byteOrder: $("b-ob").value };
+  const u = num("ou"), c = num("oc");
+  if (protocol === "artnet") { out.universe = u ?? 0; if (c !== undefined) out.channel = c; }
+  else if (protocol === "ddp") out.offset = u ?? 0;
+  else if (protocol === "danmx") out.startPixel = u ?? 0;
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  t.output = out;
+  await postLayout(false);
+}
+for (const [id] of EMIT_FIELDS) $("b-" + id).addEventListener("change", commitEmitter);
+for (const id of ["op", "oh", "oport", "ou", "oc", "ob"]) $("b-" + id).addEventListener("change", commitOutput);
+function updateBox() {
+  if (selected == null) return;
+  const b = boxHelper.box.makeEmpty(); const v = new THREE.Vector3(), m = new THREE.Matrix4();
+  for (let i = 0; i < N; i++) if (instOf[i] === selected) { mesh.getMatrixAt(i, m); v.setFromMatrixPosition(m); b.expandByPoint(v); }
+  b.expandByScalar((scene.meta?.pitchMM || 20) * 2);
+}
+function setGizmoMode(mode) { gizmo.setMode(mode); $("b-move").classList.toggle("on", mode === "translate"); $("b-rot").classList.toggle("on", mode === "rotate"); }
+
+// live: move the selected instance's pixels/structures as the gizmo or fields change
+function liveTransform(pos, rotDeg) {
+  const tf = instTf[selected];
+  tf.pos = pos; tf.rotDeg = rotDeg; tf.R = eulerMatrix(rotDeg);
+  placeInstance(selected);
+  updateBox();
+}
+gizmo.addEventListener("dragging-changed", (e) => { controls.enabled = !e.value; if (!e.value && selected != null) commitTransform(); });
+gizmo.addEventListener("objectChange", () => {
+  if (selected == null) return;
+  const pos = [proxy.position.x, proxy.position.y, proxy.position.z];
+  const rot = [proxy.rotation.x / D2R, proxy.rotation.y / D2R, proxy.rotation.z / D2R];
+  liveTransform(pos, rot); fillFields(instTf[selected]);
+});
+for (const id of ["px", "py", "pz", "rx", "ry", "rz"]) $("b-" + id).addEventListener("change", () => {
+  if (selected == null) return;
+  const pos = [+$("b-px").value, +$("b-py").value, +$("b-pz").value], rot = [+$("b-rx").value, +$("b-ry").value, +$("b-rz").value];
+  liveTransform(pos, rot); proxy.position.set(...pos); proxy.rotation.set(rot[0] * D2R, rot[1] * D2R, rot[2] * D2R, "ZYX");
+  commitTransform();
+});
+
+// write the selected instance's transform into its layout entry and apply it on the hub
+async function commitTransform() {
+  const e = entryOf(selected);
+  if (!e) { markHubStale("nothing to commit to"); return; }
+  const tf = instTf[selected], inst = scene.meta.instances[selected];
+  const r1 = (x) => Math.round(x * 10) / 10;
+  if (e.entry.array || e.entry.ring) { // a generated element: move the generator's origin by the same delta
+    const base = e.entry.pos || [0, 0, 0];
+    e.entry.pos = [0, 1, 2].map((i) => Math.round(base[i] + (tf.pos[i] - inst.pos[i])));
+  } else {
+    e.entry.pos = tf.pos.map((x) => Math.round(x));
+    e.entry.rotDeg = tf.rotDeg.map(r1);
+    if (e.entry.rotDeg.every((x) => x === 0)) delete e.entry.rotDeg;
+  }
+  await postLayout(false);
+}
+async function postLayout(write) {
+  try {
+    const r = await api.postLayout(layout.doc, write);
+    if (r.error) { status(`✗ ${r.error}`, true); return false; }
+    status(write ? `saved ${layout.path.split("/").pop()} · ${r.instances} instance(s)${api.kind === "local" ? " (in this browser)" : ""}` : `applied live · ${r.instances} instance(s) — unsaved`, !write);
+    if (api.kind === "local") $("p-yaml").value = project.layout;
+    return true;
+  } catch (e) { status(`✗ ${e.message}`, true); return false; }
+}
+
+$("b-move").addEventListener("click", () => setGizmoMode("translate"));
+$("b-rot").addEventListener("click", () => setGizmoMode("rotate"));
+$("b-dup").addEventListener("click", async () => {
+  const e = entryOf(selected); if (!e) return;
+  const copy = JSON.parse(JSON.stringify(e.entry));
+  copy.name = `${copy.name || copy.fixture}-copy`;
+  copy.pos = [(copy.pos?.[0] || 0) + Math.round(boxHelper.box.max.x - boxHelper.box.min.x || 500), copy.pos?.[1] || 0, copy.pos?.[2] || 0];
+  layout.doc.instances.splice(e.src.i + 1, 0, copy);
+  await postLayout(false);
+});
+$("b-del").addEventListener("click", async () => {
+  const e = entryOf(selected); if (!e) return;
+  if (layout.doc.instances.length <= 1) { status("✗ a layout needs at least one instance", true); return; }
+  layout.doc.instances.splice(e.src.i, 1);
+  deselect();
+  await postLayout(false);
+});
+$("b-array").addEventListener("click", async () => {
+  const e = entryOf(selected); if (!e) return;
+  const count = ["cx", "cy", "cz"].map((id) => Math.max(1, +$("b-" + id).value | 0)), spacing = ["sx", "sy", "sz"].map((id) => +$("b-" + id).value || 0);
+  delete e.entry.ring;
+  e.entry.array = { count, spacing, center: !!e.entry.array?.center };
+  await postLayout(false);
+});
+$("b-add").addEventListener("click", async () => {
+  const fx = $("b-fixture").value; if (!fx) return;
+  layout.doc.instances.push({ fixture: fx, name: `${fx}-${layout.doc.instances.length + 1}`, pos: [0, 0, 0] });
+  await postLayout(false);
+});
+$("b-nf-add").addEventListener("click", async () => {
+  if (!layout) return;
+  const name = $("b-nf-name").value.trim().replace(/[^\w.-]+/g, "-"), type = $("b-nf-type").value, file = $("b-nf-file").value.trim();
+  if (!name || !file) { status("✗ a new fixture needs a name and an LED file", true); return; }
+  const scale = +$("b-nf-scale").value, sfile = $("b-nf-struct").value.trim(), sscale = +$("b-nf-sscale").value;
+  const params = { file };
+  if (scale > 0) params.scaleToMM = scale;
+  const def = { type, params };
+  if (sfile) def.structures = [{ file: sfile, ...(sscale > 0 ? { scaleToMM: sscale } : {}) }];
+  (layout.doc.fixtures ||= {})[name] = def;
+  (layout.doc.instances ||= []).push({ fixture: name, name: `${name}-1`, pos: [0, 0, 0] });
+  status(`importing ${file}…`, true);
+  const okp = await postLayout(false);
+  if (!okp) { delete layout.doc.fixtures[name]; layout.doc.instances.pop(); } // hub rejected it: roll back
+});
+$("b-save").addEventListener("click", () => postLayout(true));
+
+// click = select (a real click, not an orbit drag)
+let downAt = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!buildOn || !downAt || gizmo.dragging) return;
+  if (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 4) return;
+  const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObject(simOn ? simMesh : mesh, false)[0];
+  if (hit && hit.instanceId != null) select(instOf[hit.instanceId]); else deselect();
+});
+
+// on-screen toggles (the keys still work — but not while a builder field has focus; Esc leaves it)
+$("v-sim").addEventListener("click", () => { simOn = !simOn; applyMode(); });
+$("v-bloom").addEventListener("click", () => { bloomOn = !bloomOn; applyMode(); });
+$("v-model").addEventListener("click", () => { modelMode = (modelMode + 1) % 3; applyMode(); });
+$("v-normals").addEventListener("click", () => { normalsOn = !normalsOn; applyMode(); });
+$("v-build").addEventListener("click", () => toggleBuilder(!buildOn));
+$("v-stand").addEventListener("click", cycleStand);
+
+addEventListener("keydown", (e) => {
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) { if (e.key === "Escape" || e.key === "Enter") e.target.blur(); return; }
+  const k = e.key.toLowerCase();
+  if (k === "n") { normalsOn = !normalsOn; applyMode(); }
+  else if (k === "s") { simOn = !simOn; applyMode(); }
+  else if (k === "b") { bloomOn = !bloomOn; applyMode(); }
+  else if (k === "m") { modelMode = (modelMode + 1) % 3; applyMode(); }
+  else if (k === "e") toggleBuilder(!buildOn);
+  else if (k === "v") cycleStand();
+  else if (k === "p" && staticMode) toggleProject();
+  else if (buildOn && k === "t") setGizmoMode("translate");
+  else if (buildOn && k === "r" && !$("b-rot").disabled) setGizmoMode("rotate");
+  else if (k === "r" && ropes.length) { ropesOn = !ropesOn; for (let i = 0; i < instTf.length; i++) placeInstance(i); applyMode(); }
+  else if (k === "o") { controls.autoRotate = !controls.autoRotate; syncBar(); }
+  else if (buildOn && k === "escape") deselect();
+  else if (buildOn && (k === "delete" || k === "backspace") && selected != null) $("b-del").click();
+  else if (k === "[") { slider.value = Math.max(0, +slider.value - 0.05); goManual(); }
+  else if (k === "]") { slider.value = Math.min(1, +slider.value + 0.05); goManual(); }
+  else if (k === "a") autoBtn.click();
+});
+
+function loop() {
+  requestAnimationFrame(loop);
+  if (standing == null) controls.update(); // OrbitControls.update() re-places the camera — never while standing at a vantage
+  const now = performance.now();
+  if (now - lastFpsT > 500) { $("h-fps").textContent = Math.round((frameCount * 1000) / (now - lastFpsT)); frameCount = 0; lastFpsT = now; }
+  if (simOn && composer) composer.render(); else renderer.render(scene3, camera);
+}
+loop();
+// debug / automation hook (also lets tests drive the builder without a mouse)
+window.voxeled = { select, deselect, liveTransform, commitTransform, pickScene, liveConnect, liveDisconnect, ctlPress, scene3, get ropes() { return ropes; }, get api() { return api; }, get structures() { return structures; }, get instTf() { return instTf; }, get selected() { return selected; }, get scene() { return scene; }, get currentScene() { return currentScene; } };
+boot().catch((e) => { $("h-name").textContent = "load error"; console.error("VOXELED_ERROR", e); });
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+# THREAD on voxeled — the public layout. The LEDs are baked (thread.vxl.json: 7,200 pixels with
+# their emission normals and strands, exported from the fabrication model); the steel is the
+# decimated fab model. Universe → LED is luxpi's publisher rule, as data (the `map:` below).
+name: thread
+units: mm
+
+fixtures:
+  thread:
+    type: vxl
+    params: { file: thread.vxl.json }
+    structures:
+      - { file: thread-structure.glb, scaleToMM: 1000, rotDeg: [-90, 0, 0], opacity: 0.35, color: "#55575c" }
+
+instances:
+  - { fixture: thread, name: thread }
+
+# Live: the luxpi bridge (python -m luxpi.sim bridge, or the play server) over a WebSocket — raw
+# ArtDmx packets or 21,600-byte RGB frames, pedestal JSON both ways.
+#   universe u → strand u÷12 (X Y Z = the three tubes, W = the spine), string (u mod 12)÷4,
+#   quarter u mod 4 of 150 px; quarters 0-1 pedestal A's strip in order, 2-3 pedestal B's strip,
+#   each universe reversed within its 150 px (artnet_publisher.py).
+inputs:
+  - name: bridge
+    protocol: ws
+    priority: 100
+    timeoutMs: 800
+    map: { strings: 12, universesPerString: 4, perUniverse: 150, stripB: luxpi, groups: { size: 3, order: [0, 1, 2, 3] }, flip: false }
+merge: { mode: priority, fallback: show, timeoutMs: 800 }
+
+# The pedestals: a press goes to the bridge as {"type":"button","podpi":"a","button":"x","pressed":true};
+# the bridge's status message brings the strand states back.
+controls:
+  panels:
+    - { name: pedestal A, buttons: [x, y, z], keys: { q: x, w: y, e: z }, message: { type: button, podpi: a, button: $button, pressed: $pressed } }
+    - { name: pedestal B, buttons: [x, y, z], keys: { i: x, o: y, p: z }, message: { type: button, podpi: b, button: $button, pressed: $pressed } }
+  status:
+    type: status
+    fields:
+      - { label: strand X, path: states.x }
+      - { label: strand Y, path: states.y }
+      - { label: strand Z, path: states.z }
+      - { label: pedestals, path: podpi }
+
+show:
+  holdS: 14
+  fadeS: 1.5
+  scenes:
+    - { name: plasma,   pattern: plasma }
+    - { name: fire,     pattern: fire }
+    - { name: comet,    pattern: comet, params: { speed: 0.1, tail: 0.12 } }
+    - { name: white,    pattern: solid, params: { value: 0.85 } }
+    - { name: strands,  pattern: strands, params: { group: 3 } }
+    - { name: chase,    pattern: ribbonChase, params: { loops: 3, speed: 0.1 } }
+    - { name: normals,  pattern: normalRGB }
