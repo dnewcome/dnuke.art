@@ -1,0 +1,328 @@
+{
+  "source": "https://curiate.com/app/profile/dnuke/catalogue",
+  "synced": "2026-10-01T03:17:40.863Z",
+  "works": [
+    {
+      "slug": "sphere-1",
+      "public_id": "0YG2g65Kp6nTnQcUMnjy5e",
+      "catalog_number": "No. 1",
+      "title": "Sphere 1",
+      "year": 2019,
+      "medium": "Steel",
+      "dimensions": "15 × 15 × 15″",
+      "statement": null,
+      "series": null,
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/4US4wKU4P9KBFGvd5ol8RW",
+      "media": [
+        {
+          "type": "image",
+          "file": "5N0kC2l0d00eOhvBvhuyNY.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 364479
+        }
+      ]
+    },
+    {
+      "slug": "wires-1",
+      "public_id": "4vDHNEe0ytfgav0nXN7iHo",
+      "catalog_number": "No. 2",
+      "title": "Wires 1",
+      "year": 2026,
+      "medium": "Formed steel wire",
+      "dimensions": "24 × 24 × 10 in",
+      "statement": "Bridging the space between ideas and visual space, exploring linear forms as physical mark making.",
+      "series": null,
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/71rmYgQaxToLGyLpfbECsn",
+      "media": [
+        {
+          "type": "image",
+          "file": "0ZYboGRvFtqruJCaIWe0p3.png",
+          "w": 1646,
+          "h": 1440,
+          "shape": "square",
+          "bytes": 460946
+        }
+      ]
+    },
+    {
+      "slug": "heart-rock-test",
+      "public_id": "4rwYplm2J7l9mG5TfttIVL",
+      "catalog_number": "No. 3",
+      "title": "Heart rock test",
+      "year": 2026,
+      "medium": "Ceramic",
+      "dimensions": "2 × 2 × 2″",
+      "statement": "Test sale",
+      "series": null,
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/5PSup9Au8YCw0ju2v6JwS1",
+      "media": [
+        {
+          "type": "image",
+          "file": "3i8yZpsAPvWlXHZaJcOgMS.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 653752
+        }
+      ]
+    },
+    {
+      "slug": "fidget",
+      "public_id": "38RDY5hoGSzCrhsl7m8QLK",
+      "catalog_number": "No. 4",
+      "title": "Fidget",
+      "year": 2026,
+      "medium": "PLA",
+      "dimensions": "2 × 2 in",
+      "statement": null,
+      "series": null,
+      "sold": true,
+      "curiate_url": "https://curiate.com/app/post/1cnnA0RUkIHGhv83GQQhrV",
+      "media": [
+        {
+          "type": "image",
+          "file": "4q7N6QlWvDyiMKX608yfwR.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 1214067
+        }
+      ]
+    },
+    {
+      "slug": "heart-5",
+      "public_id": "6k2fpJBXq0QjzDMqeWt0lN",
+      "catalog_number": "HT-001",
+      "title": "Heart 5",
+      "year": 2026,
+      "medium": "stainless steel",
+      "dimensions": "24 × 30 inches",
+      "statement": "Spaces between holds the meaning between us. This series of intertwining elements explores the connections between us.",
+      "series": "hearts",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/4LRuPfMKhtD5aVxi1QmNGL",
+      "media": [
+        {
+          "type": "image",
+          "file": "67WfMWYy1kxY3CvQbf2XqW.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 399622
+        }
+      ]
+    },
+    {
+      "slug": "cube-puzzle-1",
+      "public_id": "56sE4qDasrxzUxvMnIFUGK",
+      "catalog_number": "PAR-001",
+      "title": "Cube Puzzle 1",
+      "year": 2024,
+      "medium": "Plasma cut steel",
+      "dimensions": "8 × 8 × 8 in",
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/02SUY0UP6e8Jst9KrnfOgA",
+      "media": [
+        {
+          "type": "image",
+          "file": "3FyDSXMMtI72RxVY1jreyN.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 357341
+        }
+      ]
+    },
+    {
+      "slug": "blades-of-grass",
+      "public_id": "56CCdb5bCboBjFd35pm6EE",
+      "catalog_number": "PAR-002",
+      "title": "Blades of grass",
+      "year": 2018,
+      "medium": "Plasma cut steel",
+      "dimensions": "12 × 12 × 16 in",
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/5ZMlK4pAgC9PmjTLCvvPU8",
+      "media": [
+        {
+          "type": "image",
+          "file": "4AmCSARtGhtiM1EsALzH2s.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 447622
+        }
+      ]
+    },
+    {
+      "slug": "rocketman",
+      "public_id": "4SEMkSBi45CvNiZcwqIUcW",
+      "catalog_number": "PAR-003",
+      "title": "Rocketman",
+      "year": 2024,
+      "medium": "Steel, brass fittings",
+      "dimensions": null,
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/3UNNH3yaaLmPO3cmvqM9TR",
+      "media": [
+        {
+          "type": "image",
+          "file": "4JekCcob461EuHErDdUz5L.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 417512
+        }
+      ]
+    },
+    {
+      "slug": "grass-fire",
+      "public_id": "2B9yZbJpX1rMbFxnX6H5Uy",
+      "catalog_number": "PAR-004",
+      "title": "Grass Fire",
+      "year": 2018,
+      "medium": "Plasma cut steel",
+      "dimensions": "6 × 10 × 12″",
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/70I29CQap5t1yw64qbQnML",
+      "media": [
+        {
+          "type": "image",
+          "file": "7bYMAhF8ScNtHBYqA1scSP.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 505588
+        }
+      ]
+    },
+    {
+      "slug": "planeterrarium",
+      "public_id": "3NOCV8Potf4GhWFOQEd3I1",
+      "catalog_number": "PAR-005",
+      "title": "Planeterrarium",
+      "year": 2018,
+      "medium": "Steel, bearings and sprockets",
+      "dimensions": "24 × 24 × 24",
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/27eNYW4nR5wybvNiYagUOr",
+      "media": [
+        {
+          "type": "image",
+          "file": "1ceqyc23ntRp8uSaajS0b4.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 520927
+        }
+      ]
+    },
+    {
+      "slug": "polar-audio-glitch-1",
+      "public_id": "7Mg4WXN2W7KUMxJsj3iNlf",
+      "catalog_number": "PAR-006",
+      "title": "Polar audio glitch 1",
+      "year": 2026,
+      "medium": "Large format glitch inkjet on photo paper",
+      "dimensions": null,
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/6kuiOxmnPfMZlPnR4cAGpu",
+      "media": [
+        {
+          "type": "image",
+          "file": "07Las7v2Wll1B9Sc7Bc8Qp.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 603906
+        }
+      ]
+    },
+    {
+      "slug": "cubic-audio-glitch-1",
+      "public_id": "3VAC3boV13rzweIPFhSqsq",
+      "catalog_number": "PAR-007",
+      "title": "Cubic audio glitch 1",
+      "year": 2026,
+      "medium": "Large format glitch inkjet on photo paper",
+      "dimensions": null,
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/2R2qDpvKMLnWfTWrdDX1KX",
+      "media": [
+        {
+          "type": "image",
+          "file": "3Oz2UmoJVIsowsPsfi8jjs.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 543755
+        }
+      ]
+    },
+    {
+      "slug": "cubic-audio-glitch-2",
+      "public_id": "325qyh8Dw7ViMuH9XhvrLQ",
+      "catalog_number": "PAR-008",
+      "title": "Cubic audio glitch 2",
+      "year": 2026,
+      "medium": "Large format glitch inkjet on photo paper",
+      "dimensions": null,
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/2vnL0kRRNKV7vEywXkshHm",
+      "media": [
+        {
+          "type": "image",
+          "file": "59n36lRUWu0MGa2yZ6pjla.jpg",
+          "w": 1440,
+          "h": 1920,
+          "shape": "portrait",
+          "bytes": 531189
+        }
+      ]
+    },
+    {
+      "slug": "samson-heart-1",
+      "public_id": "3Z3Zmugiqi2QvB9J6lVaBo",
+      "catalog_number": "PAR-009",
+      "title": "Samson heart 1",
+      "year": 2024,
+      "medium": "Stainless steel",
+      "dimensions": "18 × 24in",
+      "statement": null,
+      "series": "Parameters",
+      "sold": false,
+      "curiate_url": "https://curiate.com/app/post/4cIs264y8pvVBhFJhvxCKu",
+      "media": [
+        {
+          "type": "image",
+          "file": "6Kv5oQzoOZClpCbgHHIF7R.jpg",
+          "w": 1875,
+          "h": 1920,
+          "shape": "square",
+          "bytes": 582506
+        }
+      ]
+    }
+  ]
+}
