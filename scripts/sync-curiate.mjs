@@ -21,12 +21,10 @@ const ORIGIN = "https://curiate.com";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WORKS = path.join(ROOT, "works");
 const FEATURED = []; // slugs (works/<slug>/) to lead with, after anything pinned on Curiate
-// The opening screen's full-bleed image (between <!-- curiate:hero:start/end -->). It isn't
-// repeated in the list below. tone: "light" photo → dark heading; "dark" → light heading.
-// position: which part of the photo to keep when it's cropped to fill a tall screen (phones).
-// wall: the photo's background colour, top → bottom (sampled from its left edge). On wide screens
-// the whole photo sits at the right, full height, fading into this, with the heading on the "wall".
-const HERO = { slug: "samson-heart-1", tone: "light", position: "50% 42%", wall: ["#b8b7b1", "#c9c5be", "#ccc5bc"] };
+// The opening image (between <!-- curiate:hero:start/end -->): full width at its own proportions,
+// with the heading over it. It isn't repeated in the list below.
+// tone: "light" photo → dark heading; "dark" → light heading.
+const HERO = { slug: "samson-heart-1", tone: "light" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const abs = (u) => (u && u.startsWith("/") ? ORIGIN + u : u);
@@ -256,11 +254,10 @@ async function main() {
   const heroStart = "<!-- curiate:hero:start -->", heroEnd = "<!-- curiate:hero:end -->";
   if (!html.includes(heroStart) || !html.includes(heroEnd)) throw new Error(`index.html needs ${heroStart} … ${heroEnd} markers inside the hero section`);
   const heroBody = hero ? `
-      <img class="hero-image" src="works/${esc(hero.slug)}/${esc(hero.media[0].file)}" alt="${esc(hero.title)}${hero.medium ? ", " + esc(hero.medium.toLowerCase()) : ""}" style="object-position: ${esc(HERO.position)}" fetchpriority="high">
+      <img class="hero-image" src="works/${esc(hero.slug)}/${esc(hero.media[0].file)}" alt="${esc(hero.title)}${hero.medium ? ", " + esc(hero.medium.toLowerCase()) : ""}" width="${hero.media[0].w}" height="${hero.media[0].h}" fetchpriority="high">
       <a class="hero-credit" href="works/${esc(hero.slug)}/">${esc(hero.title)} <span>${esc([hero.medium, hero.year].filter(Boolean).join(" · ").toLowerCase())}</span></a>` : "";
   html = html.slice(0, html.indexOf(heroStart)) + heroStart + heroBody + "\n      " + heroEnd + html.slice(html.indexOf(heroEnd) + heroEnd.length);
-  const wall = hero && HERO.wall ? ` style="--hero-wall: linear-gradient(${HERO.wall.map(esc).join(", ")})"` : "";
-  html = html.replace(/<section class="hero[^"]*"( style="[^"]*")?>/, `<section class="hero${hero ? " has-image " + (HERO.tone === "dark" ? "dark" : "light") : ""}"${wall}>`);
+  html = html.replace(/<section class="hero[^"]*"( style="[^"]*")?>/, `<section class="hero${hero ? " has-image " + (HERO.tone === "dark" ? "dark" : "light") : ""}">`);
   fill("curiate:featured", featured);
   fill("curiate", rest);
   writeFileSync(indexPath, html);

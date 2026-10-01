@@ -112,37 +112,21 @@ nav a:hover {
   display: block;
 }
 
-/* Opening image (set by scripts/sync-curiate.mjs): full bleed behind the heading */
-.hero { position: relative; overflow: hidden; }
-.hero-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-.hero.has-image { padding-bottom: calc(clamp(2rem, 6vw, 4rem) + 2.5rem); } /* room for the credit */
-/* Wide screens: the whole photo at full height on the right, fading into its own wall colour,
-   so nothing is cropped and the heading sits on the wall */
-@media (min-aspect-ratio: 11/10) {
-  .hero.has-image { background: var(--hero-wall, var(--surface)); }
-  .hero-image {
-    object-fit: contain;
-    object-position: right center !important;
-    -webkit-mask-image: linear-gradient(to right, transparent calc(100% - 100dvh * 0.98), #000 calc(100% - 100dvh * 0.98 + 18vh));
-            mask-image: linear-gradient(to right, transparent calc(100% - 100dvh * 0.98), #000 calc(100% - 100dvh * 0.98 + 18vh));
-  }
-}
-/* Tall screens (phones): the photo fills the top, fading into its wall, with the heading below it */
-@media (max-aspect-ratio: 11/10) {
-  .hero.has-image { background: var(--hero-wall, var(--surface)); }
-  .hero-image {
-    height: 76%;
-    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent);
-            mask-image: linear-gradient(to bottom, #000 82%, transparent);
-  }
-}
-.hero-text { position: relative; z-index: 1; }
-.hero.light h1 { color: #111; }
+/* Opening image (set by scripts/sync-curiate.mjs): the photo full width at its own proportions,
+   edge to edge, running past the fold if it's tall; the heading and credit sit over it at the
+   bottom of the first screen (or of the photo, if the photo is shorter than the screen) */
+.hero.has-image { height: auto; display: block; padding: 0; position: relative; }
+.hero-image { display: block; width: 100%; height: auto; }
+.hero.has-image .hero-text,
 .hero-credit {
   position: absolute;
   z-index: 1;
+  bottom: max(clamp(2rem, 6vw, 4rem), calc(100% - 100dvh + clamp(2rem, 6vw, 4rem)));
+}
+.hero.has-image .hero-text { left: clamp(1rem, 4vw, 2.5rem); }
+.hero.light h1 { color: #111; }
+.hero-credit {
   right: clamp(1rem, 4vw, 2.5rem);
-  bottom: clamp(1.25rem, 3vw, 2rem);
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   color: var(--fg);
@@ -151,6 +135,7 @@ nav a:hover {
 .hero.light .hero-credit { color: #111; }
 .hero.light .hero-credit span { color: #555; }
 .hero-credit:hover { text-decoration: underline; text-underline-offset: 0.25em; }
+@media (max-width: 700px) { .hero-credit { display: none; } } /* no room beside the heading */
 
 #hero-tech  { margin-top: 0; }
 #hero-fire  { margin-top: 0; }
