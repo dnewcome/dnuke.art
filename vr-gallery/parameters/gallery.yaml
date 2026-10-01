@@ -1,5 +1,5 @@
 # Parameters: works from the HVAW show, in a room the size of the 20-foot container.
-# Rendered by pixeldestrukt/vr-gallery (vendored at /vr-gallery). Captions are the show
+# Rendered by pixeldestrukt/vr-gallery (vendored at /vr-gallery/engine). Captions are the show
 # site's (dnuke-art/hvaw-show, site.html); process blocks are the generators' own constants
 # (dnuke-art/cv-draw). The hang is this page's, not the show's.
 name: parameters
