@@ -146,6 +146,8 @@ nav a:hover {
 /* Square option */
 .piece.square .media {
   aspect-ratio: 1 / 1;
+  max-width: min(100%, 88vh); /* the whole piece fits the screen */
+  margin: 0 auto;
 }
 
 .piece .caption {

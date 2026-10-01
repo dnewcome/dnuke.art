@@ -1,9 +1,12 @@
 {
   "source": "https://curiate.com/app/profile/dnuke/catalogue",
-  "synced": "2026-10-01T03:17:40.863Z",
+  "synced": "2026-10-01T03:33:22.065Z",
   "works": [
     {
       "slug": "sphere-1",
+      "post_ids": [
+        "4US4wKU4P9KBFGvd5ol8RW"
+      ],
       "public_id": "0YG2g65Kp6nTnQcUMnjy5e",
       "catalog_number": "No. 1",
       "title": "Sphere 1",
@@ -27,6 +30,9 @@
     },
     {
       "slug": "wires-1",
+      "post_ids": [
+        "71rmYgQaxToLGyLpfbECsn"
+      ],
       "public_id": "4vDHNEe0ytfgav0nXN7iHo",
       "catalog_number": "No. 2",
       "title": "Wires 1",
@@ -50,6 +56,9 @@
     },
     {
       "slug": "heart-rock-test",
+      "post_ids": [
+        "5PSup9Au8YCw0ju2v6JwS1"
+      ],
       "public_id": "4rwYplm2J7l9mG5TfttIVL",
       "catalog_number": "No. 3",
       "title": "Heart rock test",
@@ -73,6 +82,9 @@
     },
     {
       "slug": "fidget",
+      "post_ids": [
+        "1cnnA0RUkIHGhv83GQQhrV"
+      ],
       "public_id": "38RDY5hoGSzCrhsl7m8QLK",
       "catalog_number": "No. 4",
       "title": "Fidget",
@@ -96,6 +108,9 @@
     },
     {
       "slug": "heart-5",
+      "post_ids": [
+        "4LRuPfMKhtD5aVxi1QmNGL"
+      ],
       "public_id": "6k2fpJBXq0QjzDMqeWt0lN",
       "catalog_number": "HT-001",
       "title": "Heart 5",
@@ -119,6 +134,9 @@
     },
     {
       "slug": "cube-puzzle-1",
+      "post_ids": [
+        "02SUY0UP6e8Jst9KrnfOgA"
+      ],
       "public_id": "56sE4qDasrxzUxvMnIFUGK",
       "catalog_number": "PAR-001",
       "title": "Cube Puzzle 1",
@@ -142,6 +160,9 @@
     },
     {
       "slug": "blades-of-grass",
+      "post_ids": [
+        "5ZMlK4pAgC9PmjTLCvvPU8"
+      ],
       "public_id": "56CCdb5bCboBjFd35pm6EE",
       "catalog_number": "PAR-002",
       "title": "Blades of grass",
@@ -165,6 +186,9 @@
     },
     {
       "slug": "rocketman",
+      "post_ids": [
+        "3UNNH3yaaLmPO3cmvqM9TR"
+      ],
       "public_id": "4SEMkSBi45CvNiZcwqIUcW",
       "catalog_number": "PAR-003",
       "title": "Rocketman",
@@ -188,6 +212,9 @@
     },
     {
       "slug": "grass-fire",
+      "post_ids": [
+        "70I29CQap5t1yw64qbQnML"
+      ],
       "public_id": "2B9yZbJpX1rMbFxnX6H5Uy",
       "catalog_number": "PAR-004",
       "title": "Grass Fire",
@@ -211,6 +238,9 @@
     },
     {
       "slug": "planeterrarium",
+      "post_ids": [
+        "27eNYW4nR5wybvNiYagUOr"
+      ],
       "public_id": "3NOCV8Potf4GhWFOQEd3I1",
       "catalog_number": "PAR-005",
       "title": "Planeterrarium",
@@ -234,6 +264,9 @@
     },
     {
       "slug": "polar-audio-glitch-1",
+      "post_ids": [
+        "6kuiOxmnPfMZlPnR4cAGpu"
+      ],
       "public_id": "7Mg4WXN2W7KUMxJsj3iNlf",
       "catalog_number": "PAR-006",
       "title": "Polar audio glitch 1",
@@ -257,6 +290,9 @@
     },
     {
       "slug": "cubic-audio-glitch-1",
+      "post_ids": [
+        "2R2qDpvKMLnWfTWrdDX1KX"
+      ],
       "public_id": "3VAC3boV13rzweIPFhSqsq",
       "catalog_number": "PAR-007",
       "title": "Cubic audio glitch 1",
@@ -280,6 +316,9 @@
     },
     {
       "slug": "cubic-audio-glitch-2",
+      "post_ids": [
+        "2vnL0kRRNKV7vEywXkshHm"
+      ],
       "public_id": "325qyh8Dw7ViMuH9XhvrLQ",
       "catalog_number": "PAR-008",
       "title": "Cubic audio glitch 2",
@@ -303,6 +342,9 @@
     },
     {
       "slug": "samson-heart-1",
+      "post_ids": [
+        "4cIs264y8pvVBhFJhvxCKu"
+      ],
       "public_id": "3Z3Zmugiqi2QvB9J6lVaBo",
       "catalog_number": "PAR-009",
       "title": "Samson heart 1",
