@@ -1,0 +1,132 @@
+# Parameters: works from the HVAW show, in a room the size of the 20-foot container.
+# Rendered by pixeldestrukt/vr-gallery (vendored at /vr-gallery). Captions are the show
+# site's (dnuke-art/hvaw-show, site.html); process blocks are the generators' own constants
+# (dnuke-art/cv-draw). The hang is this page's, not the show's.
+name: parameters
+title: Parameters
+artist: Dan Newcome
+about: >
+  Parameters explores the mind-body connection through digital imagery and material
+  processes. Selected works form both a retrospective of the artist's digital past and
+  glimpses of an uncertain future of physical form through automation.
+
+# Minting (after `make deploy` in pixeldestrukt/vr-gallery): uncomment, paste the address, and
+# give Reaction `seed: chain, piece: 1` so its iterations come from the chain.
+# chain:
+#   rpc: https://sepolia.base.org
+#   contract: "0x…"
+#   chainId: 84532
+#   explorer: https://sepolia.basescan.org
+
+room:
+  size: [2.34, 5.89, 2.39]   # the container's interior, 7'8" x 19'4" x 7'10"
+  wall: "#efece6"
+  floor: "#57524d"
+
+exhibits:
+  # ── back wall: one image sweeping a whole parameter space ──────────────────
+  - id: reaction
+    title: Reaction
+    year: 2026
+    medium: Live Gray-Scott simulation, after the pigment print
+    media:
+      live:
+        module: pieces/reaction.mjs     # a GPU port of cv-draw reaction.py
+        # seed: 42                      # pin it; unseeded = a fresh hash every iteration
+        # seed: chain                   # …or broadcast from the Moments contract (with piece: 1)
+        # piece: 1
+        params: { scale: 0.5 }
+    wall: north
+    at: 0
+    width: 1.5
+    y: 1.45
+    story:
+      text: >
+        Gray-Scott reaction-diffusion in which the feed and kill rates vary continuously
+        across the sheet — one image sweeping an entire parameter space, with the
+        transitions between regimes visible as bands.
+      process:
+        tool: cv-draw / reaction.py, ported to the GPU (pieces/reaction.mjs)
+        source: https://github.com/dnuke-art/cv-draw/blob/main/reaction.py
+        seed: a fresh hash each iteration (the print is seed 42)
+        params: { STEPS: 6500, F_RANGE: [0.018, 0.062], K_AT_LOW_F: 0.0545, K_SHEAR: 0.13 }
+
+  # ── right wall (east): 2026, the prints ────────────────────────────────────
+  - id: flowfield
+    title: Flow Field
+    year: 2026
+    medium: Pigment print
+    media: { image: img/work-flowfield.jpg }
+    wall: east
+    at: -1.2
+    width: 1.2
+    story:
+      text: >
+        Particles integrated through a smoothed noise field and stroked as additive
+        layers — no 3D library, no shaders, arithmetic and a drawing routine.
+      process:
+        tool: cv-draw / flowfield.py
+        source: https://github.com/dnuke-art/cv-draw/blob/main/flowfield.py
+        seed: 7
+        params: { N_PARTICLES: 2600, N_STEPS: 420, TURNS: 2.6 }
+
+  - id: fluid
+    title: Fluid
+    year: 2026
+    medium: Pigment print
+    media: { image: img/work-fluid.jpg }
+    wall: east
+    at: 0.7
+    width: 0.75
+    story:
+      text: >
+        A stable-fluids solver run as a picture rather than a simulation.
+      process:
+        tool: cv-draw / fluid.py
+        source: https://github.com/dnuke-art/cv-draw/blob/main/fluid.py
+        seed: 8
+        params: { STEPS: 340, JACOBI: 30, VORT: 0.28 }
+
+  # ── left wall (west): 2013, blitbomb ──────────────────────────────────────
+  - id: blitbomb
+    title: blitbomb
+    year: 2013
+    medium: Live video performance, Pure Data / GEM
+    media: { image: img/blitbomb-silhouette-green.jpg }
+    wall: west
+    at: 1.5
+    width: 0.7
+    story:
+      text: >
+        Ten scenes driven by hand from a game controller. Faceted, low-polygon,
+        deliberately short of detail — the same appetite that produced the
+        seventy-eight-triangle heart thirteen years later.
+      process:
+        tool: Pure Data / GEM
+        input: a game controller, by hand
+        scenes: 10
+
+  - id: blitbomb-installed
+    title: blitbomb, installed
+    year: 2013
+    medium: Documentation photograph
+    media: { image: img/blitbomb-projectors.jpg }   # file names are swapped at the source: this is the wall
+    wall: west
+    at: 0
+    width: 0.75
+    story:
+      text: >
+        Two projectors edge-blended across a workshop wall at Hacker Dojo.
+
+  - id: apparatus
+    title: The apparatus
+    year: 2013
+    medium: Documentation photograph
+    media: { image: img/blitbomb-twin-projectors.jpg }   # …and this is the rig on the table
+    wall: west
+    at: -1.5
+    width: 1.0
+    story:
+      text: >
+        The whole rig. Two borrowed projectors and a laptop — which is what it took to
+        see the work once.

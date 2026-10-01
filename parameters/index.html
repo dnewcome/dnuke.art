@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Parameters — works from the HVAW show, in a walkable room the size of the container. In a browser or a VR headset.">
+  <title>parameters — dnuke.art</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* The room, full viewport — the vr-gallery viewer in a frame, with its own title chrome */
+    .viewer { position: relative; height: 100dvh; background: var(--bg); overflow: hidden; }
+    .viewer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+    .about-piece {
+      padding: var(--gap) clamp(1rem, 4vw, 2.5rem);
+      display: grid;
+      grid-template-columns: minmax(0, 52ch) 1fr;
+      gap: clamp(2rem, 8vw, 6rem);
+      border-top: 1px solid #222;
+    }
+    .about-piece h1 { font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 300; letter-spacing: -0.03em; line-height: 1; text-transform: lowercase; margin-bottom: 1.5rem; }
+    .about-piece p a { border-bottom: 1px solid var(--fg-muted); }
+    .about-piece p a:hover { border-color: var(--fg); }
+    .about-piece p { font-size: clamp(1rem, 2vw, 1.2rem); line-height: 1.6; font-weight: 300; margin-bottom: 1.2em; }
+    .specs { list-style: none; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); line-height: 2; }
+    .specs span { color: var(--fg); }
+    .specs a { border-bottom: 1px solid var(--fg-muted); text-transform: none; letter-spacing: 0; }
+    .specs a:hover { border-color: var(--fg); }
+    /* ?embed — bare room for a tile */
+    body.embed footer, body.embed .about-piece { display: none; }
+    body.embed .viewer { height: 100vh; }
+    @media (max-width: 700px) { .about-piece { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <main>
+    <section class="viewer">
+      <!-- xr-spatial-tracking: without it, "Enter VR" can't start a session from inside a frame -->
+      <iframe id="viewer" title="Parameters — the room" allow="xr-spatial-tracking; fullscreen"></iframe>
+    </section>
+
+    <section class="about-piece">
+      <div>
+        <h1>parameters</h1>
+        <p>
+          Parameters explores the mind-body connection through digital imagery and
+          material processes. Selected works form both a retrospective of the artist's
+          digital past and glimpses of an uncertain future of physical form through
+          automation.
+        </p>
+        <p>
+          The room above is the size of the 20-foot container at Hayes Valley Art Works
+          where the show hung. The hang is not the show's. Walking in from the door, 2013
+          is on your left: blitbomb, a live video performance, and the rig it took to see
+          it. The 2026 prints are on your right, and <em>Reaction</em> is on the back wall:
+          one image sweeping an entire parameter space.
+        </p>
+        <p>
+          Every work carries its story. Click or tap one and it opens with the recipe
+          that made it: the generator, the seed, the parameters. On a headset, press
+          <em>Enter VR</em>; point and pull the trigger at the floor to move, or at a work to
+          read it.
+        </p>
+        <p>
+          It runs on <a href="https://github.com/pixeldestrukt/vr-gallery" target="_blank" rel="noopener">vr-gallery</a>,
+          an open WebGL/WebXR gallery. The room is one small file
+          (<a href="gallery.yaml">gallery.yaml</a>), and the same page can show any room
+          described that way.
+        </p>
+      </div>
+      <ul class="specs">
+        <li>show <span><a href="https://parameters.dnuke.art/" target="_blank" rel="noopener">parameters.dnuke.art</a></span></li>
+        <li>Hayes Valley Art Works, 2026</li>
+        <li><span>6</span> works, 2013 &ndash; 2026</li>
+        <li>room <span>7&prime;8&Prime; &times; 19&prime;4&Prime; &times; 7&prime;10&Prime;</span></li>
+        <li>generators <span><a href="https://github.com/dnuke-art/cv-draw" target="_blank" rel="noopener">github.com/dnuke-art/cv-draw</a></span></li>
+        <li>runs on <span><a href="https://github.com/pixeldestrukt/vr-gallery" target="_blank" rel="noopener">vr-gallery</a></span></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <span>&copy; 2026 dnuke</span>
+  </footer>
+
+  <script>
+    // The room is the vr-gallery viewer (vendored at /vr-gallery) showing /parameters/gallery.yaml.
+    // This page's URL params pass through (?work=<id> opens at a work with its story), and ?embed
+    // gives a bare room for a tile.
+    const PARAMS = new URLSearchParams(location.search);
+    const q = new URLSearchParams({ project: '/parameters/gallery.yaml' });
+    if (PARAMS.has('embed')) document.body.classList.add('embed');
+    for (const [k, v] of PARAMS) if (k !== 'embed') q.set(k, v);
+    const frame = document.getElementById('viewer');
+    frame.src = '/vr-gallery/viewer/?' + String(q).replace(/%2F/gi, '/');
+    // WASD / arrows reach the room without clicking into the frame first
+    const forward = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.repeat) return;
+      if (!/^(Key[WASD]|Arrow|Shift)/.test(e.code)) return;
+      if (e.code.startsWith('Arrow')) e.preventDefault(); // don't scroll the page while walking
+      frame.contentWindow?.postMessage({ vrGallery: 'key', code: e.code, type: e.type }, '*');
+    };
+    addEventListener('keydown', forward); addEventListener('keyup', forward);
+    // The room reports what you're looking at (a work, a caught moment); mirror it in this
+    // page's URL so the address bar is always a link back to it.
+    addEventListener('message', (e) => {
+      if (e.source !== frame.contentWindow || e.data?.vrGallery !== 'view') return;
+      const q = new URLSearchParams(e.data.query); q.delete('project');
+      if (PARAMS.has('embed')) q.set('embed', '');
+      history.replaceState(null, '', location.pathname + (String(q) ? '?' + String(q).replace(/%2F/gi, '/').replace(/=(&|$)/g, '$1') : ''));
+    });
+  </script>
+</body>
+</html>

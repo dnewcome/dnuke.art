@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>vr-gallery</title>
+<style>
+  :root { --fg: #f3f1ec; --muted: #a9a398; --panel: rgba(16,16,18,0.92); --accent: #f2c14e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0c0c0d; color: var(--fg); font: 15px/1.5 system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; touch-action: none; }
+  #title { position: fixed; top: 16px; left: 16px; padding: 8px 14px; border-radius: 12px; background: rgba(250,249,246,0.8); pointer-events: none; color: #1d1c1a; }
+  #title h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  #title p { margin: 2px 0 0; font-size: 13px; color: #5b574f; }
+  #hint { position: fixed; bottom: 16px; left: 16px; max-width: calc(100% - 150px); padding: 6px 12px; border-radius: 999px; background: rgba(250,249,246,0.8); font-size: 12px; color: #3d3a35; pointer-events: none; }
+  #xr { position: fixed; bottom: 14px; right: 16px; padding: 10px 18px; border: 0; border-radius: 999px; background: #161616; color: #fff; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+  #xr:hover { background: #000; }
+  #story { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100%); padding: 28px 28px 40px; background: var(--panel); backdrop-filter: blur(8px); overflow-y: auto; transform: translateX(100%); transition: transform 0.28s ease; }
+  #story.open { transform: none; }
+  #story .close { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255,255,255,0.08); color: var(--fg); font-size: 20px; cursor: pointer; }
+  #story h2 { margin: 0 44px 4px 0; font-size: 26px; line-height: 1.2; font-weight: 600; }
+  #story h3 { margin: 26px 0 8px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  #story .by { margin: 0; color: var(--fg); }
+  #story .meta { margin: 0 0 18px; color: var(--muted); }
+  #story p { margin: 0 0 12px; }
+  #story dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+  #story dt { color: var(--muted); }
+  #story dd { margin: 0; overflow-wrap: anywhere; }
+  #story table.params { margin-top: 10px; border-collapse: collapse; font: 13px ui-monospace, monospace; width: 100%; }
+  #story table.params th, #story table.params td { text-align: left; padding: 4px 8px 4px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  #story table.params th { color: var(--muted); font-weight: 400; }
+  #story a { color: var(--fg); }
+  #story .hash { font: 12px ui-monospace, monospace; }
+  #story .note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  #story pre.moment { margin: 8px 0 0; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.06); font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #story button[data-live] { padding: 7px 14px; border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; background: none; color: var(--fg); font: 14px system-ui, sans-serif; cursor: pointer; }
+  #story button[data-live="catch"], #story button[data-live="mint"] { background: var(--accent); border-color: var(--accent); color: #161616; font-weight: 600; }
+  #story button[disabled] { opacity: 0.5; cursor: default; }
+  #story .mint-status a { color: var(--accent); }
+  #story .handoff { display: flex; gap: 14px; align-items: center; margin-top: 14px; }
+  #story .handoff svg { flex: none; border-radius: 6px; }
+  #story .handoff .note { margin: 0; }
+  #story .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  #story .links a { padding: 7px 14px; border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; text-decoration: none; font-size: 14px; }
+  #story .links a.buy { background: var(--accent); border-color: var(--accent); color: #161616; font-weight: 600; }
+  #msg { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+  #msg code { color: var(--fg); }
+  [hidden] { display: none !important; }
+  .chrome-off #title, .chrome-off #hint { display: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="title"></div>
+<div id="hint">drag to look · WASD / arrows to walk · click the floor to go there · click a work for its story</div>
+<button id="xr" hidden></button>
+<aside id="story" aria-live="polite"><button class="close" aria-label="Close">×</button><div class="body"></div></aside>
+<div id="msg" hidden></div>
+<script type="module" src="./main.mjs"></script>
+</body>
+</html>
