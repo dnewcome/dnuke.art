@@ -10,13 +10,14 @@ about: >
   processes. Selected works form both a retrospective of the artist's digital past and
   glimpses of an uncertain future of physical form through automation.
 
-# Minting (after `make deploy` in pixeldestrukt/vr-gallery): uncomment, paste the address, and
-# give Reaction `seed: chain, piece: 1` so its iterations come from the chain.
-# chain:
-#   rpc: https://sepolia.base.org
-#   contract: "0x…"
-#   chainId: 84532
-#   explorer: https://sepolia.basescan.org
+# Minting: the Moments contract on Base Sepolia (testnet). Reaction is piece 1; its iterations
+# are broadcast from block hashes, so every visitor sees the same one, and a caught moment can
+# be minted for ~4.5 hours.
+chain:
+  rpc: https://sepolia.base.org
+  contract: "0x7EA0DCcC87830Da0d20e4B1aCAdD7B4D6D1007Dc"
+  chainId: 84532
+  explorer: https://sepolia.basescan.org
 
 room:
   size: [2.34, 5.89, 2.39]   # the container's interior, 7'8" x 19'4" x 7'10"
@@ -32,9 +33,8 @@ exhibits:
     media:
       live:
         module: pieces/reaction.mjs     # a GPU port of cv-draw reaction.py
-        # seed: 42                      # pin it; unseeded = a fresh hash every iteration
-        # seed: chain                   # …or broadcast from the Moments contract (with piece: 1)
-        # piece: 1
+        seed: chain                     # iterations broadcast from the Moments contract
+        piece: 1
         params: { scale: 0.5 }
     wall: north
     at: 0
@@ -48,7 +48,7 @@ exhibits:
       process:
         tool: cv-draw / reaction.py, ported to the GPU (pieces/reaction.mjs)
         source: https://github.com/dnuke-art/cv-draw/blob/main/reaction.py
-        seed: a fresh hash each iteration (the print is seed 42)
+        seed: each iteration's hash comes from a Base block (the print is seed 42)
         params: { STEPS: 6500, F_RANGE: [0.018, 0.062], K_AT_LOW_F: 0.0545, K_SHEAR: 0.13 }
 
   # ── right wall (east): 2026, the prints ────────────────────────────────────
